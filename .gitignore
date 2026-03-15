@@ -9,8 +9,8 @@ backend/*.pyc
 .venv/
 venv/
 
-# Database — tracked via Git LFS
-# backend/padel_stats.db
+# Database — raw file ignored, .gz version committed
+backend/padel_stats.db
 
 # Temp/debug files
 backend/api_response.json
