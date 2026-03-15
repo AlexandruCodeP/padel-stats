@@ -31,9 +31,4 @@ COPY backend/main.py backend/database.py backend/config.py backend/auth.py backe
 # Frontend static files
 COPY --from=frontend-builder /app/frontend/dist ./static
 
-EXPOSE 8001
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/ || exit 1
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8001}
