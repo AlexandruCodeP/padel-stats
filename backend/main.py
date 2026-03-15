@@ -48,6 +48,15 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def strip_api_prefix(request: Request, call_next):
+    """Strip /api prefix so frontend calls like /api/stats hit /stats.
+    Mimics the Vite dev proxy rewrite in production."""
+    if request.url.path.startswith("/api"):
+        request.scope["path"] = request.url.path[4:] or "/"
+    return await call_next(request)
+
+
 @app.get("/health")
 def health():
     """Railway healthcheck endpoint — responds immediately."""
