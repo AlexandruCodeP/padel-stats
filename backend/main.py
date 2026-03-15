@@ -4,10 +4,13 @@ REST API with base, dashboard, and analytics endpoints.
 """
 import datetime
 import logging
+import os
 
-from fastapi import FastAPI, Query, HTTPException, Depends
+from fastapi import FastAPI, Query, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from typing import Optional
@@ -284,3 +287,21 @@ def ana_prediction(joueur_id: int):
 def ana_records(mois: Optional[str] = None, genre: Optional[str] = None):
     with get_db() as conn:
         return analytics_records(conn, mois, genre)
+
+
+# ── Serve frontend static files in production ────────────────────────────────
+
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+if os.path.isdir(STATIC_DIR):
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+
+    # Serve other static files (favicon, etc.)
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """SPA fallback — serve index.html for all non-API routes."""
+        file_path = os.path.join(STATIC_DIR, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
