@@ -122,6 +122,10 @@ def admin_scheduler_info():
 
 @app.get("/")
 def root():
+    # In production, serve frontend; in dev, return API info
+    index = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.isfile(index):
+        return FileResponse(index)
     return {"name": "Padel Stats France", "version": "1.0.0"}
 
 
