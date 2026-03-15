@@ -48,6 +48,12 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+def health():
+    """Railway healthcheck endpoint — responds immediately."""
+    return {"status": "ok"}
+
+
 app.include_router(auth_router)
 
 
