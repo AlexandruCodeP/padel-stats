@@ -25,8 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Backend code
+# Backend code + database
 COPY backend/main.py backend/database.py backend/config.py backend/auth.py backend/import_data.py ./
+COPY backend/padel_stats.db ./
 
 # Frontend static files
 COPY --from=frontend-builder /app/frontend/dist ./static

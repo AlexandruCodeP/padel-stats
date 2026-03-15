@@ -9,8 +9,8 @@ backend/*.pyc
 .venv/
 venv/
 
-# Database (too large for GitHub)
-backend/padel_stats.db
+# Database — tracked via Git LFS
+# backend/padel_stats.db
 
 # Temp/debug files
 backend/api_response.json
