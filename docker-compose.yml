@@ -1,0 +1,40 @@
+services:
+
+  # ── Backend FastAPI ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: padel-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      # La DB SQLite est persistée sur l'hôte
+      - ./backend/padel_stats.db:/app/padel_stats.db
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── Frontend React + nginx ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: padel-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+# Réseau interne pour que nginx puisse appeler "backend:8001"
+networks:
+  default:
+    name: padel-network

@@ -1,0 +1,763 @@
+"""
+Padel Stats France — Database module
+SQLite schema, CRUD, and analytics queries.
+"""
+import sqlite3
+import os
+from contextlib import contextmanager
+
+# DB path from env var DATABASE_PATH, fallback to local file
+DB_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "padel_stats.db"))
+
+
+def get_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
+    conn.execute("PRAGMA mmap_size=268435456")  # 256 MB mmap
+    return conn
+
+
+@contextmanager
+def get_db():
+    conn = get_connection()
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# ── Schema ───────────────────────────────────────────────────────────────
+
+def init_db():
+    with get_db() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS joueurs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            prenom TEXT,
+            genre TEXT NOT NULL CHECK(genre IN ('H','F')),
+            nationalite TEXT,
+            UNIQUE(nom, prenom, genre)
+        );
+
+        CREATE TABLE IF NOT EXISTS classements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            joueur_id INTEGER NOT NULL REFERENCES joueurs(id),
+            mois TEXT NOT NULL,
+            rang INTEGER,
+            points INTEGER,
+            evolution TEXT,
+            nb_tournois INTEGER,
+            ligue TEXT,
+            meilleur_classement INTEGER,
+            est_assimile BOOLEAN DEFAULT 0,
+            age INTEGER,
+            est_anonyme BOOLEAN DEFAULT 0,
+            UNIQUE(joueur_id, mois)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_classements_mois ON classements(mois);
+        CREATE INDEX IF NOT EXISTS idx_classements_joueur ON classements(joueur_id);
+        CREATE INDEX IF NOT EXISTS idx_classements_rang ON classements(rang);
+        CREATE INDEX IF NOT EXISTS idx_classements_mois_genre ON classements(mois, genre);
+        CREATE INDEX IF NOT EXISTS idx_classements_mois_rang ON classements(mois, rang);
+        CREATE INDEX IF NOT EXISTS idx_joueurs_nom ON joueurs(nom, prenom);
+        CREATE INDEX IF NOT EXISTS idx_joueurs_genre ON joueurs(genre);
+
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        """)
+        # Migrations for existing DBs
+        for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT")]:
+            try:
+                conn.execute(f"ALTER TABLE classements ADD COLUMN {col} {default}")
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
+        # Backfill genre from joueurs if needed
+        conn.execute("UPDATE classements SET genre = (SELECT genre FROM joueurs WHERE joueurs.id = classements.joueur_id) WHERE genre IS NULL")
+        conn.commit()
+    print("Database initialized.")
+
+
+# ── CRUD helpers ─────────────────────────────────────────────────────────
+
+def upsert_joueur(conn, nom, prenom, genre, nationalite):
+    cur = conn.execute(
+        """INSERT INTO joueurs (nom, prenom, genre, nationalite)
+           VALUES (?,?,?,?)
+           ON CONFLICT(nom, prenom, genre) DO UPDATE SET nationalite=excluded.nationalite
+           RETURNING id""",
+        (nom, prenom or "", genre, nationalite),
+    )
+    return cur.fetchone()[0]
+
+
+def bulk_upsert_classements(conn, rows):
+    conn.executemany(
+        """INSERT INTO classements
+           (joueur_id, mois, rang, points, evolution, nb_tournois, ligue, meilleur_classement, est_assimile, age, est_anonyme, genre)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(joueur_id, mois) DO UPDATE SET
+             rang=excluded.rang, points=excluded.points, evolution=excluded.evolution,
+             nb_tournois=excluded.nb_tournois, ligue=excluded.ligue,
+             meilleur_classement=excluded.meilleur_classement,
+             est_assimile=excluded.est_assimile, age=excluded.age,
+             est_anonyme=excluded.est_anonyme, genre=excluded.genre""",
+        rows,
+    )
+
+
+# ── Query: months ────────────────────────────────────────────────────────
+
+def get_mois_disponibles(conn):
+    rows = conn.execute(
+        """SELECT mois,
+                  SUM(CASE WHEN genre='H' THEN 1 ELSE 0 END) as nb_hommes,
+                  SUM(CASE WHEN genre='F' THEN 1 ELSE 0 END) as nb_femmes,
+                  COUNT(*) as total
+           FROM classements
+           GROUP BY mois ORDER BY mois DESC"""
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_dernier_mois(conn):
+    row = conn.execute("SELECT MAX(mois) as mois FROM classements").fetchone()
+    return row["mois"] if row else None
+
+
+# ── Query: classement ────────────────────────────────────────────────────
+
+def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=None):
+    where, params = ["c.mois=?"], [mois]
+    if genre:
+        where.append("c.genre=?"); params.append(genre)
+    if ligue:
+        where.append("c.ligue=?"); params.append(ligue)
+    if search:
+        where.append("(j.nom LIKE ? OR j.prenom LIKE ?)"); params += [f"%{search}%", f"%{search}%"]
+    w = " AND ".join(where)
+
+    total = conn.execute(f"SELECT COUNT(*) as cnt FROM classements c JOIN joueurs j ON j.id=c.joueur_id WHERE {w}", params).fetchone()["cnt"]
+
+    params += [size, page * size]
+    rows = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
+                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.est_anonyme
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE {w} ORDER BY c.rang ASC LIMIT ? OFFSET ?""",
+        params,
+    ).fetchall()
+    return {"total": total, "page": page, "size": size, "joueurs": [dict(r) for r in rows]}
+
+
+def get_classement_export(conn, mois, genre=None):
+    """Return ALL players for a given month without pagination (for PDF export)."""
+    where, params = ["c.mois=?"], [mois]
+    if genre:
+        where.append("c.genre=?"); params.append(genre)
+    w = " AND ".join(where)
+
+    rows = conn.execute(
+        f"""SELECT c.rang, j.nom, j.prenom, j.nationalite, c.genre,
+                   c.points, c.evolution, c.nb_tournois, c.ligue, c.est_assimile, c.est_anonyme
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE {w} ORDER BY c.rang ASC""",
+        params,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Query: joueur detail ─────────────────────────────────────────────────
+
+def get_joueur(conn, joueur_id):
+    j = conn.execute("SELECT * FROM joueurs WHERE id=?", (joueur_id,)).fetchone()
+    if not j:
+        return None
+    historique = conn.execute(
+        "SELECT * FROM classements WHERE joueur_id=? ORDER BY mois DESC", (joueur_id,)
+    ).fetchall()
+    return {"joueur": dict(j), "historique": [dict(r) for r in historique]}
+
+
+# ── Query: search ─────────────────────────────────────────────────────────
+
+def search_joueurs(conn, q, genre=None, limit=20):
+    where, params = ["(j.nom LIKE ? OR j.prenom LIKE ?)"], [f"%{q}%", f"%{q}%"]
+    if genre:
+        where.append("c.genre=?"); params.append(genre)
+    w = " AND ".join(where)
+    dernier_mois = get_dernier_mois(conn)
+    if not dernier_mois:
+        return []
+    rows = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
+                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile
+            FROM joueurs j LEFT JOIN classements c ON c.joueur_id=j.id AND c.mois=?
+            WHERE {w} ORDER BY c.rang ASC NULLS LAST LIMIT ?""",
+        [dernier_mois] + params + [limit],
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Query: top ────────────────────────────────────────────────────────────
+
+def get_top(conn, genre, limit=10):
+    mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    rows = conn.execute(
+        """SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
+                  c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+           WHERE c.mois=? AND c.genre=? ORDER BY c.rang ASC LIMIT ?""",
+        (mois, genre, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Query: compare ────────────────────────────────────────────────────────
+
+def compare_joueurs(conn, id1, id2):
+    j1 = get_joueur(conn, id1)
+    j2 = get_joueur(conn, id2)
+    return {"joueur1": j1, "joueur2": j2}
+
+
+# ── Query: ligues ─────────────────────────────────────────────────────────
+
+def get_ligues(conn, mois=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    rows = conn.execute(
+        """SELECT c.ligue,
+                  COUNT(*) as total,
+                  SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                  SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+           WHERE c.mois=? AND c.ligue IS NOT NULL AND c.ligue != ''
+           GROUP BY c.ligue ORDER BY total DESC""",
+        (mois,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Query: stats globales ────────────────────────────────────────────────
+
+def get_stats(conn):
+    mois = get_dernier_mois(conn)
+    if not mois:
+        return {"total_joueurs": 0, "hommes": 0, "femmes": 0, "mois_disponibles": 0, "dernier_mois": None}
+    row = conn.execute(
+        """SELECT COUNT(*) as total,
+                  SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                  SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id WHERE c.mois=?""",
+        (mois,),
+    ).fetchone()
+    nb_mois = conn.execute("SELECT COUNT(DISTINCT mois) as cnt FROM classements").fetchone()["cnt"]
+    return {
+        "total_joueurs": row["total"],
+        "hommes": row["hommes"],
+        "femmes": row["femmes"],
+        "mois_disponibles": nb_mois,
+        "dernier_mois": mois,
+    }
+
+
+# ── Dashboard queries ────────────────────────────────────────────────────
+
+def dashboard_overview(conn, mois=None, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return {}
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+
+    # current month stats
+    cur = conn.execute(
+        f"""SELECT COUNT(*) as total,
+                   AVG(c.points) as avg_points,
+                   AVG(c.nb_tournois) as avg_tournois,
+                   AVG(c.age) as avg_age
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? {gf}""",
+        [mois] + gp,
+    ).fetchone()
+
+    # previous month
+    prev = conn.execute(
+        "SELECT MAX(mois) as m FROM classements WHERE mois < ?", (mois,)
+    ).fetchone()["m"]
+    prev_total = 0
+    if prev:
+        prev_total = conn.execute(
+            f"SELECT COUNT(*) as cnt FROM classements c JOIN joueurs j ON j.id=c.joueur_id WHERE c.mois=? {gf}",
+            [prev] + gp,
+        ).fetchone()["cnt"]
+
+    # distribution by points
+    tranches = [
+        (0, 99), (100, 499), (500, 999), (1000, 1999),
+        (2000, 4999), (5000, 9999), (10000, 999999),
+    ]
+    distribution = []
+    for lo, hi in tranches:
+        label = f"{lo}-{hi}" if hi < 999999 else f"{lo}+"
+        cnt = conn.execute(
+            f"""SELECT COUNT(*) as cnt FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.points BETWEEN ? AND ? {gf}""",
+            [mois, lo, hi] + gp,
+        ).fetchone()["cnt"]
+        distribution.append({"tranche": label, "count": cnt})
+
+    return {
+        "mois": mois,
+        "total": cur["total"],
+        "prev_total": prev_total,
+        "avg_points": round(cur["avg_points"] or 0, 1),
+        "avg_tournois": round(cur["avg_tournois"] or 0, 1),
+        "avg_age": round(cur["avg_age"] or 0, 1),
+        "distribution": distribution,
+    }
+
+
+def dashboard_progressions(conn, mois=None, genre=None, limit=10):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
+              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf}
+            ORDER BY CAST(REPLACE(c.evolution,'+','') AS INTEGER) DESC LIMIT ?""",
+        [mois] + gp + [limit],
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def dashboard_chutes(conn, mois=None, genre=None, limit=10):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
+              AND CAST(REPLACE(c.evolution,'-','') AS INTEGER) > 0
+              AND c.evolution LIKE '-%' {gf}
+            ORDER BY CAST(REPLACE(c.evolution,'-','') AS INTEGER) DESC LIMIT ?""",
+        [mois] + gp + [limit],
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def dashboard_evolution_mensuelle(conn, genre=None):
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT c.mois,
+                   SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                   SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes,
+                   COUNT(*) as total
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE 1=1 {gf}
+            GROUP BY c.mois ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def dashboard_ages(conn, mois=None, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    tranches = [(0, 17), (18, 25), (26, 35), (36, 45), (46, 55), (56, 99)]
+    result = []
+    for lo, hi in tranches:
+        label = f"{lo}-{hi}" if hi < 99 else f"{lo}+"
+        row = conn.execute(
+            """SELECT
+                 SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                 SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes
+               FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+               WHERE c.mois=? AND c.age BETWEEN ? AND ?""",
+            (mois, lo, hi),
+        ).fetchone()
+        result.append({"tranche": label, "hommes": row["hommes"] or 0, "femmes": row["femmes"] or 0})
+    return result
+
+
+def dashboard_ligues(conn, mois=None, genre=None):
+    return get_ligues(conn, mois)
+
+
+# ── Analytics queries ─────────────────────────────────────────────────────
+
+def analytics_numero_un(conn, genre=None):
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite, c.mois
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.rang=1 {gf} ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+    # group by player
+    hall = {}
+    for r in rows:
+        key = r["id"]
+        if key not in hall:
+            hall[key] = {"id": r["id"], "nom": r["nom"], "prenom": r["prenom"],
+                         "genre": r["genre"], "nationalite": r["nationalite"],
+                         "mois_numero_un": [], "nb_mois": 0}
+        hall[key]["mois_numero_un"].append(r["mois"])
+        hall[key]["nb_mois"] += 1
+    return sorted(hall.values(), key=lambda x: x["nb_mois"], reverse=True)
+
+
+def analytics_difficulte_progression(conn, mois=None, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    tranches = [(1, 10), (11, 50), (51, 100), (101, 500), (501, 1000), (1001, 5000), (5001, 99999)]
+    result = []
+    for lo, hi in tranches:
+        label = f"Top {lo}-{hi}" if hi < 99999 else f"Top {lo}+"
+        row = conn.execute(
+            f"""SELECT COUNT(*) as total,
+                       SUM(CASE WHEN c.evolution IS NOT NULL AND c.evolution != '='
+                           AND CAST(REPLACE(REPLACE(c.evolution,'+',''),'-','') AS INTEGER) > 0
+                           AND c.evolution NOT LIKE '-%' THEN 1 ELSE 0 END) as progressions
+                FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.rang BETWEEN ? AND ? {gf}""",
+            [mois, lo, hi] + gp,
+        ).fetchone()
+        total = row["total"] or 1
+        result.append({
+            "tranche": label,
+            "total": row["total"],
+            "progressions": row["progressions"] or 0,
+            "taux": round((row["progressions"] or 0) / total * 100, 1),
+        })
+    return result
+
+
+def analytics_inflation_points(conn, genre=None):
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    niveaux = [1, 10, 50, 100, 500, 1000]
+
+    # Fetch ALL (mois, rang, points) where points > 0 in one query,
+    # ordered by mois ASC then rang ASC.  We iterate once in Python.
+    rows = conn.execute(
+        f"""SELECT c.mois, c.rang, c.points
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.points > 0 {gf}
+            ORDER BY c.mois ASC, c.rang ASC""",
+        gp,
+    ).fetchall()
+
+    # Group by month and find closest rank >= each target
+    from collections import OrderedDict
+    months = OrderedDict()
+    for r in rows:
+        m = r["mois"]
+        if m not in months:
+            months[m] = {f"rang_{n}": None for n in niveaux}
+            months[m]["_filled"] = set()
+        entry = months[m]
+        rang = r["rang"]
+        pts = r["points"]
+        for n in niveaux:
+            if n not in entry["_filled"] and rang >= n:
+                entry[f"rang_{n}"] = pts
+                entry["_filled"].add(n)
+
+    result = []
+    for m, entry in months.items():
+        del entry["_filled"]
+        entry["mois"] = m
+        result.append(entry)
+    return result
+
+
+def analytics_nationalites_par_niveau(conn, mois=None, top=100, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT j.nationalite, COUNT(*) as count
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.rang <= ? AND j.nationalite IS NOT NULL AND j.nationalite != '' {gf}
+            GROUP BY j.nationalite ORDER BY count DESC""",
+        [mois, top] + gp,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def analytics_age_par_niveau(conn, mois=None, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    tranches = [(1, 10), (11, 50), (51, 100), (101, 500), (501, 1000), (1001, 5000), (5001, 99999)]
+    result = []
+    for lo, hi in tranches:
+        label = f"Top {lo}-{hi}" if hi < 99999 else f"Top {lo}+"
+        row = conn.execute(
+            f"""SELECT AVG(c.age) as avg_age, MIN(c.age) as min_age, MAX(c.age) as max_age
+                FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.rang BETWEEN ? AND ? AND c.age IS NOT NULL {gf}""",
+            [mois, lo, hi] + gp,
+        ).fetchone()
+        result.append({
+            "tranche": label,
+            "avg_age": round(row["avg_age"] or 0, 1),
+            "min_age": row["min_age"] or 0,
+            "max_age": row["max_age"] or 0,
+        })
+    return result
+
+
+def analytics_frequence_tournois(conn, mois=None, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    tranches = [(0, 0), (1, 3), (4, 6), (7, 10), (11, 15), (16, 20), (21, 999)]
+    result = []
+    for lo, hi in tranches:
+        label = f"{lo}-{hi}" if hi < 999 else f"{lo}+"
+        if lo == hi:
+            label = str(lo)
+        cnt = conn.execute(
+            f"""SELECT COUNT(*) as cnt FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.nb_tournois BETWEEN ? AND ? {gf}""",
+            [mois, lo, hi] + gp,
+        ).fetchone()["cnt"]
+        result.append({"tranche": label, "count": cnt})
+    return result
+
+
+def analytics_profil_type(conn, mois=None, top=100, genre=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return {}
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    row = conn.execute(
+        f"""SELECT AVG(c.age) as avg_age, AVG(c.points) as avg_points,
+                   AVG(c.nb_tournois) as avg_tournois,
+                   COUNT(*) as total
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.rang <= ? {gf}""",
+        [mois, top] + gp,
+    ).fetchone()
+    # most common nationality
+    nat = conn.execute(
+        f"""SELECT j.nationalite, COUNT(*) as cnt
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.rang <= ? AND j.nationalite IS NOT NULL AND j.nationalite != '' {gf}
+            GROUP BY j.nationalite ORDER BY cnt DESC LIMIT 1""",
+        [mois, top] + gp,
+    ).fetchone()
+    # most common ligue
+    lig = conn.execute(
+        f"""SELECT c.ligue, COUNT(*) as cnt
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.rang <= ? AND c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            GROUP BY c.ligue ORDER BY cnt DESC LIMIT 1""",
+        [mois, top] + gp,
+    ).fetchone()
+    return {
+        "top": top,
+        "mois": mois,
+        "total": row["total"],
+        "avg_age": round(row["avg_age"] or 0, 1),
+        "avg_points": round(row["avg_points"] or 0, 1),
+        "avg_tournois": round(row["avg_tournois"] or 0, 1),
+        "nationalite_principale": nat["nationalite"] if nat else None,
+        "ligue_principale": lig["ligue"] if lig else None,
+    }
+
+
+# ── Advanced Analytics ───────────────────────────────────────────────────
+
+def analytics_competitivite_ligue(conn, mois=None, genre=None):
+    """Competitivity index per league: avg points of top 10 players in each league."""
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    
+    ligues = conn.execute(
+        f"""SELECT DISTINCT c.ligue FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            ORDER BY c.ligue""",
+        [mois] + gp,
+    ).fetchall()
+    
+    result = []
+    for l in ligues:
+        ligue_name = l["ligue"]
+        row = conn.execute(
+            f"""SELECT AVG(sub.points) as avg_pts, MIN(sub.rang) as best_rank,
+                       COUNT(*) as total_players
+                FROM (
+                    SELECT c.points, c.rang
+                    FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                    WHERE c.mois=? AND c.ligue=? AND c.points > 0 {gf}
+                    ORDER BY c.rang ASC LIMIT 10
+                ) sub""",
+            [mois, ligue_name] + gp,
+        ).fetchone()
+        
+        total = conn.execute(
+            f"""SELECT COUNT(*) as cnt FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.ligue=? {gf}""",
+            [mois, ligue_name] + gp,
+        ).fetchone()["cnt"]
+        
+        result.append({
+            "ligue": ligue_name,
+            "avg_top10_pts": round(row["avg_pts"] or 0, 1),
+            "best_rank": row["best_rank"],
+            "total": total,
+            "competitivite": round((row["avg_pts"] or 0) / 100, 1),  # Index
+        })
+    
+    result.sort(key=lambda x: x["avg_top10_pts"], reverse=True)
+    return result
+
+
+def analytics_participation_feminine(conn):
+    """Female participation rate per month — trend over time."""
+    rows = conn.execute(
+        """SELECT c.mois,
+                  COUNT(*) as total,
+                  SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes,
+                  SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+           GROUP BY c.mois ORDER BY c.mois ASC"""
+    ).fetchall()
+    return [
+        {
+            "mois": r["mois"],
+            "total": r["total"],
+            "femmes": r["femmes"],
+            "hommes": r["hommes"],
+            "pct_femmes": round((r["femmes"] / r["total"] * 100) if r["total"] > 0 else 0, 2),
+        }
+        for r in rows
+    ]
+
+
+def analytics_predictions(conn, joueur_id):
+    """Simple rank prediction based on historical evolution trend."""
+    historique = conn.execute(
+        "SELECT mois, rang, points, evolution FROM classements WHERE joueur_id=? ORDER BY mois ASC",
+        (joueur_id,),
+    ).fetchall()
+    if len(historique) < 2:
+        return {"prediction": None, "trend": "insufficient_data"}
+    
+    ranks = [h["rang"] for h in historique]
+    # Linear trend
+    delta = ranks[-1] - ranks[0]
+    avg_delta_per_month = delta / (len(ranks) - 1)
+    predicted_rank = max(1, round(ranks[-1] + avg_delta_per_month))
+    
+    trend = "stable"
+    if avg_delta_per_month < -5:
+        trend = "strong_up"
+    elif avg_delta_per_month < 0:
+        trend = "up"
+    elif avg_delta_per_month > 5:
+        trend = "strong_down"
+    elif avg_delta_per_month > 0:
+        trend = "down"
+    
+    return {
+        "current_rank": ranks[-1],
+        "predicted_rank": predicted_rank,
+        "trend": trend,
+        "avg_delta": round(avg_delta_per_month, 1),
+        "months_analyzed": len(ranks),
+    }
+
+
+def analytics_records(conn, mois=None, genre=None):
+    """Records du mois: biggest progression and most active player."""
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return {}
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+
+    prog_row = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
+              AND c.evolution NOT LIKE '-%'
+              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf}
+            ORDER BY CAST(REPLACE(c.evolution,'+','') AS INTEGER) DESC LIMIT 1""",
+        [mois] + gp,
+    ).fetchone()
+
+    actif_row = conn.execute(
+        f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.nb_tournois, c.ligue
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.nb_tournois IS NOT NULL {gf}
+            ORDER BY c.nb_tournois DESC LIMIT 1""",
+        [mois] + gp,
+    ).fetchone()
+
+    return {
+        "plus_grosse_progression": dict(prog_row) if prog_row else None,
+        "joueur_plus_actif": dict(actif_row) if actif_row else None,
+    }
+
+
+if __name__ == "__main__":
+    init_db()
