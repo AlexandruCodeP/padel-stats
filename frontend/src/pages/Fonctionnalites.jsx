@@ -148,7 +148,7 @@ export default function Fonctionnalites() {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#475569]">
             <Link to="/fonctionnalites" className="text-[#0F172A] font-semibold">Fonctionnalités</Link>
             <Link to="/classement" className="hover:text-[#0F172A] transition-colors">Classement</Link>
-            <Link to="/tarifs" className="hover:text-[#0F172A] transition-colors">Tarifs</Link>
+            <Link to="/dashboard" className="hover:text-[#0F172A] transition-colors">Dashboard</Link>
           </div>
           <div className="flex items-center gap-3">
             <Link to="/login" className="hidden md:block text-sm font-medium px-4 py-2 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
@@ -268,9 +268,9 @@ export default function Fonctionnalites() {
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-[#CCFF00] text-[#020617] font-bold text-sm hover:shadow-[0_0_20px_rgba(204,255,0,0.4)] transition-all hover:scale-[1.02]">
               Commencer gratuitement <ArrowRight size={16} />
             </Link>
-            <Link to="/tarifs"
+            <Link to="/fonctionnalites"
               className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full border border-white/20 text-white text-sm font-medium hover:border-white/40 transition-colors">
-              Voir les tarifs
+              Voir les fonctionnalités
             </Link>
           </div>
         </motion.div>

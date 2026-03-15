@@ -79,7 +79,7 @@ function LandingNav() {
         <div className={`hidden md:flex items-center gap-8 text-sm font-medium ${scrolled ? 'text-[#475569]' : 'text-white/80'}`}>
           <Link to="/fonctionnalites" className="hover:text-[#CCFF00] transition-colors">Fonctionnalités</Link>
           <Link to="/classement" className="hover:text-[#CCFF00] transition-colors">Classement</Link>
-          <Link to="/tarifs" className="hover:text-[#CCFF00] transition-colors">Tarifs</Link>
+          <Link to="/dashboard" className="hover:text-[#CCFF00] transition-colors">Dashboard</Link>
         </div>
 
         {/* CTAs */}
@@ -525,7 +525,7 @@ export default function Landing() {
       <StatsBar />
       <Features />
       <WhyUs />
-      <Pricing />
+      {/* Pricing removed for demo */}
       <Footer />
     </div>
   );

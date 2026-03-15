@@ -13,7 +13,7 @@ import ComparaisonMois from './pages/ComparaisonMois';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Fonctionnalites from './pages/Fonctionnalites';
-import Tarifs from './pages/Tarifs';
+
 
 function AppLayout({ children }) {
   return (
@@ -37,7 +37,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/fonctionnalites" element={<Fonctionnalites />} />
-          <Route path="/tarifs" element={<Tarifs />} />
+
 
           {/* Pages protégées — redirigent vers /login si non connecté */}
           <Route path="/classement" element={<ProtectedRoute><AppLayout><Classement /></AppLayout></ProtectedRoute>} />
