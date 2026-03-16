@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Users, User, Trophy, Calendar, FileDown, Loader2 } from 'lucide-react';
 import { getStats, getMois, getClassement, getClassementExport } from '../api';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import KPICard from '../components/KPICard';
 import PlayerCard from '../components/PlayerCard';
+import PdfWorker from '../workers/pdfExport.worker.js?worker';
 
 export default function Classement() {
     const [stats, setStats] = useState(null);
@@ -15,6 +14,8 @@ export default function Classement() {
     const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    const [exportProgress, setExportProgress] = useState('');
+    const workerRef = useRef(null);
 
     useEffect(() => {
         Promise.all([getStats(), getMois()]).then(([s, m]) => {
@@ -44,250 +45,62 @@ export default function Classement() {
 
     const exportPDF = async () => {
         setExporting(true);
+        setExportProgress('Chargement des donnees...');
         try {
             const players = await getClassementExport(mois, genre || undefined);
-
-            const doc  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const W    = doc.internal.pageSize.getWidth();   // 210 mm
-            const H    = doc.internal.pageSize.getHeight();  // 297 mm
-            const M    = 20; // margins
-
-            // ── Design tokens ──────────────────────────────────────
-            const NAVY     = [15,  23,  42];   // #0F172A
-            const VOLT     = [204, 255, 0];    // #CCFF00
-            const CORAL    = [253, 164, 175];  // #FDA4AF
-            const PINK_BG  = [255, 241, 242];  // #FFF1F2
-            const SLATE3   = [203, 213, 225];  // slate-300
-            const SLATE4   = [148, 163, 184];  // slate-400
-            const SLATE8   = [30,  41,  59];   // slate-800
-            const SLATE9   = [15,  23,  42];   // slate-950
-            const ROSE8    = [159, 18,  57];   // rose-800
-            const ROSE9    = [136, 19,  55];   // rose-900
-
-            const genreLabel = genre === 'H' ? 'Hommes' : genre === 'F' ? 'Femmes' : 'Tous';
-            const moisLabel  = formatMoisLabel(mois);
+            const moisLabel = formatMoisLabel(mois);
             const exportDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-            const HDR_H      = 36; // header height (page 1)
-            const MINI_H     = 13; // mini-header height (pages 2+)
 
-            // ════════════════════════════════════════════════════════
-            // PAGE 1 — FULL HEADER
-            // ════════════════════════════════════════════════════════
+            // Terminate any previous worker
+            if (workerRef.current) workerRef.current.terminate();
 
-            // Navy background
-            doc.setFillColor(...NAVY);
-            doc.rect(0, 0, W, HDR_H, 'F');
+            const worker = new PdfWorker();
+            workerRef.current = worker;
 
-            // Volt accent strip at bottom of header
-            doc.setFillColor(...VOLT);
-            doc.rect(0, HDR_H - 1.5, W, 1.5, 'F');
+            worker.postMessage({ players, genre, mois, moisLabel, exportDate });
 
-            // Logo — blue rounded rect + "PS" in volt
-            doc.setFillColor(0, 71, 171); // #0047AB
-            doc.rect(M, 8, 12, 12, 'F');
-            doc.setTextColor(...VOLT);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('PS', M + 6, 16.5, { align: 'center' });
-
-            // Title
-            doc.setTextColor(...VOLT);
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('CLASSEMENT OFFICIEL FFT', M + 16, 15);
-
-            // Subtitle
-            doc.setTextColor(...SLATE3);
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`${moisLabel} — ${genreLabel}`, M + 16, 21.5);
-
-            // Stats band
-            doc.setTextColor(...SLATE4);
-            doc.setFontSize(7.5);
-            // toLocaleString('fr-FR') produces narrow no-break spaces (U+202F) which
-            // are outside Latin-1 and corrupt in jsPDF built-in fonts → use plain string
-            const totalStr = players.length.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-            doc.text(
-                `Total : ${totalStr} joueurs  -  Exporte le ${exportDate}`,
-                M + 16, 28
-            );
-
-            // ── Legend (between header and table, right-aligned) ──
-            const LEG_Y = HDR_H + 3;
-            const LEG_W = 70;
-            const LEG_H = 7;
-            doc.setFillColor(...PINK_BG);
-            doc.rect(W - M - LEG_W, LEG_Y, LEG_W, LEG_H, 'F');
-            doc.setFillColor(...CORAL);
-            doc.rect(W - M - LEG_W, LEG_Y, 2, LEG_H, 'F');
-            doc.setTextColor(...ROSE9);
-            doc.setFontSize(6.5);
-            doc.setFont('helvetica', 'italic');
-            // Note: only Latin-1 chars (U+0000-U+00FF) are safe in built-in jsPDF fonts
-            doc.text('(A) Joueur avec classement assimile', W - M - LEG_W + 5, LEG_Y + 4.7);
-
-            // ════════════════════════════════════════════════════════
-            // TABLE
-            // ════════════════════════════════════════════════════════
-            const tableData = players.map(p => {
-                // ── Name: no Unicode symbols (jsPDF built-in fonts = Latin-1 only) ──
-                const rawName = p.est_anonyme
-                    ? 'Joueur anonyme'
-                    : `${p.nom || ''} ${p.prenom || ''}`.trim();
-                // Assimile indicator via styling only (coral border + pink bg)
-                const name = rawName;
-
-                // ── Evolution: parse as number to add correct +/- sign ──
-                // p.evolution may be a number OR a string like "2", "-1", "="
-                let evol = '=';
-                if (p.evolution != null) {
-                    const num = parseFloat(String(p.evolution).replace(',', '.'));
-                    if (!isNaN(num)) {
-                        evol = num > 0 ? `+${num}` : num === 0 ? '=' : String(num);
-                    } else {
-                        // Already a label like "NC", "="  — strip any non-Latin-1 just in case
-                        evol = String(p.evolution).replace(/[^\x00-\xFF]/g, '?');
-                    }
+            worker.onmessage = (e) => {
+                const { type, buffer, message } = e.data;
+                if (type === 'progress') {
+                    setExportProgress(message);
+                } else if (type === 'done') {
+                    // Save the PDF from the ArrayBuffer
+                    const blob = new Blob([buffer], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const genreSuffix = genre ? `_${genre}` : '';
+                    a.download = `classement_padel_${mois}${genreSuffix}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    setExporting(false);
+                    setExportProgress('');
+                    worker.terminate();
+                    workerRef.current = null;
+                } else if (type === 'error') {
+                    console.error('PDF worker error:', message);
+                    alert("Erreur lors de l'export PDF. Veuillez reessayer.");
+                    setExporting(false);
+                    setExportProgress('');
+                    worker.terminate();
+                    workerRef.current = null;
                 }
+            };
 
-                // ── Points: String() avoids toLocaleString non-breaking spaces ──
-                const pts = p.points != null ? String(p.points) : '-';
-
-                return [
-                    p.rang != null ? String(p.rang) : '-',
-                    name,
-                    p.est_anonyme ? '-' : (p.nationalite || '-'),
-                    p.ligue || '-',
-                    pts,
-                    evol,
-                    p.nb_tournois != null ? String(p.nb_tournois) : '-',
-                ];
-            });
-
-            autoTable(doc, {
-                startY: HDR_H + LEG_H + 6,   // below legend
-                head: [['#', 'Joueur', 'Nat.', 'Ligue', 'Points', 'Évol.', 'Tournois']],
-                body: tableData,
-
-                styles: {
-                    fontSize: 7,
-                    cellPadding: { top: 2.2, right: 2, bottom: 2.2, left: 2.5 },
-                    lineColor: [226, 232, 240],
-                    lineWidth: 0.15,
-                    textColor: SLATE8,
-                    overflow: 'ellipsize',
-                },
-                headStyles: {
-                    fillColor: [248, 250, 252],   // #F8FAFC
-                    textColor: SLATE9,
-                    fontStyle: 'bold',
-                    fontSize: 7.5,
-                    lineWidth: 0.15,
-                    lineColor: [226, 232, 240],
-                },
-                alternateRowStyles: {
-                    fillColor: [248, 250, 252],   // zebra stripe
-                },
-                columnStyles: {
-                    // col 0 : 16mm pour loger jusqu'à 6 chiffres (ex: 149 980) en Courier 7pt
-                    0: { halign: 'center', cellWidth: 16,   font: 'courier' },
-                    1: { cellWidth: 49 },
-                    2: { halign: 'center', cellWidth: 11 },
-                    3: { cellWidth: 34 },
-                    4: { halign: 'right',  cellWidth: 19,   font: 'courier' },
-                    5: { halign: 'center', cellWidth: 15,   font: 'courier' },
-                    6: { halign: 'center', cellWidth: 15,   font: 'courier' },
-                },
-
-                // ── Assimilé row styling ──
-                didParseCell: (hookData) => {
-                    if (hookData.section !== 'body') return;
-                    const player = players[hookData.row.index];
-                    if (player?.est_assimile) {
-                        hookData.cell.styles.fillColor = PINK_BG;
-                        hookData.cell.styles.textColor = ROSE8;
-                        if (hookData.column.index === 1) {
-                            hookData.cell.styles.fontStyle = 'italic';
-                        }
-                    }
-                },
-
-                // ── Coral left border drawn on top for assimilé rows ──
-                didDrawCell: (hookData) => {
-                    if (hookData.section !== 'body') return;
-                    const player = players[hookData.row.index];
-                    if (player?.est_assimile && hookData.column.index === 0) {
-                        doc.setFillColor(...CORAL);
-                        doc.rect(
-                            hookData.cell.x,
-                            hookData.cell.y,
-                            2,
-                            hookData.cell.height,
-                            'F'
-                        );
-                    }
-                },
-
-                // ── Header + footer on every page ──
-                didDrawPage: (hookData) => {
-                    // Mini-header on pages 2+
-                    if (hookData.pageNumber > 1) {
-                        doc.setFillColor(...NAVY);
-                        doc.rect(0, 0, W, MINI_H, 'F');
-                        doc.setFillColor(...VOLT);
-                        doc.rect(0, MINI_H - 1, W, 1, 'F');
-                        doc.setTextColor(...VOLT);
-                        doc.setFontSize(8);
-                        doc.setFont('helvetica', 'bold');
-                        doc.text('CLASSEMENT OFFICIEL FFT', M, 9);
-                        doc.setTextColor(...SLATE4);
-                        doc.setFontSize(7);
-                        doc.setFont('helvetica', 'normal');
-                        doc.text(`${moisLabel} — ${genreLabel}`, W - M, 9, { align: 'right' });
-                    }
-
-                    // Footer line
-                    const footerY = H - 10;
-                    doc.setDrawColor(...VOLT);
-                    doc.setLineWidth(0.5);
-                    doc.line(M, footerY, W - M, footerY);
-
-                    // Footer text
-                    doc.setFontSize(6.5);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(...SLATE4);
-                    doc.text('Padel Stats France', M, footerY + 4);
-                    doc.text(exportDate, W / 2, footerY + 4, { align: 'center' });
-                    // Temporary page number — overwritten in post-loop
-                    doc.text(`Page ${hookData.pageNumber}`, W - M, footerY + 4, { align: 'right' });
-                },
-
-                margin: { top: MINI_H + 2, left: M, right: M, bottom: 16 },
-            });
-
-            // ── Post-processing: replace temp page number with "Page X / Y" in volt ──
-            const totalPages = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= totalPages; i++) {
-                doc.setPage(i);
-                const footerY = H - 10;
-                // White mask over temporary number
-                doc.setFillColor(255, 255, 255);
-                doc.rect(W - M - 34, footerY + 0.5, 36, 6, 'F');
-                // Final styled page count
-                doc.setFontSize(6.5);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(...VOLT);
-                doc.text(`Page ${i} / ${totalPages}`, W - M, footerY + 4, { align: 'right' });
-            }
-
-            const genreSuffix = genre ? `_${genre}` : '';
-            doc.save(`classement_padel_${mois}${genreSuffix}.pdf`);
+            worker.onerror = (err) => {
+                console.error('PDF worker crash:', err);
+                alert("Erreur lors de l'export PDF. Veuillez reessayer.");
+                setExporting(false);
+                setExportProgress('');
+                workerRef.current = null;
+            };
         } catch (err) {
             console.error('PDF export error:', err);
-            alert("Erreur lors de l'export PDF. Veuillez réessayer.");
-        } finally {
+            alert("Erreur lors de l'export PDF. Veuillez reessayer.");
             setExporting(false);
+            setExportProgress('');
         }
     };
 
@@ -348,7 +161,7 @@ export default function Classement() {
                         {exporting ? (
                             <>
                                 <Loader2 size={16} className="animate-spin" />
-                                Export en cours...
+                                {exportProgress || 'Export en cours...'}
                             </>
                         ) : (
                             <>
