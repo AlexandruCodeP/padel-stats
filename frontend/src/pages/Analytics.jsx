@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
-import { getMois, getAnalyticsNumeroUn, getAnalyticsDifficulte, getAnalyticsInflation, getAnalyticsNationalites, getAnalyticsAge, getAnalyticsFrequence, getAnalyticsProfil, getAnalyticsCompetitivite, getAnalyticsFeminine, getAnalyticsRecords } from '../api';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, ComposedChart, Area } from 'recharts';
+import { getMois, getAnalyticsNumeroUn, getAnalyticsDifficulte, getAnalyticsInflation, getAnalyticsNationalites, getAnalyticsAge, getAnalyticsFrequence, getAnalyticsProfil, getAnalyticsCompetitivite, getAnalyticsFeminine, getAnalyticsRecords, getAnalyticsEvolutionNationalites, getAnalyticsRangPoints } from '../api';
 import { Trophy, Target, TrendingUp, Flame, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -36,6 +36,8 @@ export default function Analytics() {
     const [competitivite, setCompetitivite] = useState([]);
     const [feminine, setFeminine] = useState([]);
     const [records, setRecords] = useState(null);
+    const [evolutionNat, setEvolutionNat] = useState({ nationalites: [], data: [] });
+    const [rangPoints, setRangPoints] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
@@ -55,10 +57,13 @@ export default function Analytics() {
             getAnalyticsCompetitivite(mois, g),
             getAnalyticsFeminine(),
             getAnalyticsRecords(mois, g),
-        ]).then(([pr, h, d, inf, n, a, f, comp, fem, rec]) => {
+            getAnalyticsEvolutionNationalites(g, 5),
+            getAnalyticsRangPoints(mois, g),
+        ]).then(([pr, h, d, inf, n, a, f, comp, fem, rec, evNat, rp]) => {
             setProfil(pr); setHall(h); setDifficulte(d); setInflation(inf);
             setNationalites(n); setAges(a); setFrequence(f);
             setCompetitivite(comp); setFeminine(fem); setRecords(rec);
+            setEvolutionNat(evNat); setRangPoints(rp);
             setLoading(false);
         });
     }, [mois, genre, top]);
@@ -275,6 +280,28 @@ export default function Analytics() {
                     ) : <p className="text-text-secondary text-center py-8 text-sm">Pas de données</p>}
                 </div>
 
+                {/* Évolution nationalités dans le temps */}
+                {evolutionNat.data.length > 1 && (
+                    <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                        <h3 className="font-semibold text-text mb-1">Évolution des nationalités</h3>
+                        <p className="text-xs text-text-secondary mb-4">Nombre de classés par nationalité au fil du temps</p>
+                        <ResponsiveContainer width="100%" height={280}>
+                            <LineChart data={evolutionNat.data}>
+                                <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                <Tooltip content={<CustomTooltip />} labelFormatter={formatMoisLabel} formatter={(v) => v.toLocaleString('fr-FR')} />
+                                <Legend />
+                                {evolutionNat.nationalites.map((nat, i) => (
+                                    <Line key={nat} type="monotone" dataKey={nat} name={nat}
+                                        stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} connectNulls />
+                                ))}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {/* Âge par niveau */}
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                     <h3 className="font-semibold text-text mb-4">Âge moyen par niveau</h3>
@@ -287,6 +314,29 @@ export default function Analytics() {
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+
+                {/* Courbe classement / points (logarithmique) */}
+                {rangPoints.length > 0 && (
+                    <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                        <h3 className="font-semibold text-text mb-1">Courbe classement / points</h3>
+                        <p className="text-xs text-text-secondary mb-4">Points moyens par tranche de classement — courbe logarithmique naturelle</p>
+                        <ResponsiveContainer width="100%" height={280}>
+                            <ComposedChart data={rangPoints}>
+                                <defs>
+                                    <linearGradient id="gradRangPts" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="tranche" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                <Tooltip content={<CustomTooltip />} formatter={(v) => `${v.toLocaleString('fr-FR')} pts`} />
+                                <Area type="monotone" dataKey="avg_pts" fill="url(#gradRangPts)" stroke="none" />
+                                <Line type="monotone" dataKey="avg_pts" name="Points moyens" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 4, fill: '#0ea5e9' }} />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">
@@ -357,32 +407,53 @@ export default function Analytics() {
                             <div className="grid grid-cols-3 gap-3 mb-4">
                                 {(() => {
                                     const latest = feminine[feminine.length - 1];
+                                    const first = feminine[0];
+                                    const delta = (latest.pct_femmes - first.pct_femmes).toFixed(2);
                                     return (
                                         <>
                                             <div className="text-center p-2 bg-femme/10 rounded-xl">
                                                 <div className="text-lg font-bold text-femme">{latest.pct_femmes}%</div>
-                                                <div className="text-xs text-text-secondary">Femmes</div>
+                                                <div className="text-xs text-text-secondary">Femmes actuellement</div>
                                             </div>
                                             <div className="text-center p-2 bg-homme/10 rounded-xl">
                                                 <div className="text-lg font-bold text-homme">{(100 - latest.pct_femmes).toFixed(2)}%</div>
                                                 <div className="text-xs text-text-secondary">Hommes</div>
                                             </div>
                                             <div className="text-center p-2 bg-primary/10 rounded-xl">
-                                                <div className="text-lg font-bold text-primary">{latest.total.toLocaleString('fr-FR')}</div>
-                                                <div className="text-xs text-text-secondary">Total</div>
+                                                <div className={`text-lg font-bold ${delta >= 0 ? 'text-success' : 'text-danger'}`}>{delta >= 0 ? '+' : ''}{delta}%</div>
+                                                <div className="text-xs text-text-secondary">Évolution totale</div>
                                             </div>
                                         </>
                                     );
                                 })()}
                             </div>
-                            <ResponsiveContainer width="100%" height={200}>
+                            {/* % line chart */}
+                            <p className="text-xs font-medium text-text-secondary mb-1">% femmes dans le temps</p>
+                            <ResponsiveContainer width="100%" height={130}>
+                                <ComposedChart data={feminine}>
+                                    <defs>
+                                        <linearGradient id="gradFem" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#FB7185" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#FB7185" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} unit="%" domain={['auto', 'auto']} axisLine={false} tickLine={false} width={35} />
+                                    <Tooltip content={<CustomTooltip />} labelFormatter={formatMoisLabel} formatter={(v) => `${v}%`} />
+                                    <Area type="monotone" dataKey="pct_femmes" fill="url(#gradFem)" stroke="none" />
+                                    <Line type="monotone" dataKey="pct_femmes" name="% Femmes" stroke={FEMME} strokeWidth={2} dot={false} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                            {/* stacked absolute */}
+                            <p className="text-xs font-medium text-text-secondary mt-3 mb-1">Effectifs absolus</p>
+                            <ResponsiveContainer width="100%" height={130}>
                                 <BarChart data={feminine}>
-                                    <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                                     <Tooltip content={<CustomTooltip />} labelFormatter={formatMoisLabel} formatter={(v) => v.toLocaleString('fr-FR')} />
                                     <Legend />
                                     <Bar dataKey="hommes" stackId="a" fill={HOMME} name="Hommes" />
-                                    <Bar dataKey="femmes" stackId="a" fill={FEMME} radius={[8, 8, 0, 0]} name="Femmes" />
+                                    <Bar dataKey="femmes" stackId="a" fill={FEMME} radius={[4, 4, 0, 0]} name="Femmes" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>

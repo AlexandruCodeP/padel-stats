@@ -29,6 +29,8 @@ from database import (
     analytics_profil_type,
     analytics_competitivite_ligue, analytics_participation_feminine,
     analytics_predictions, analytics_records,
+    analytics_evolution_nationalites, analytics_rang_points_curve,
+    analytics_region_tableau,
 )
 
 logger = logging.getLogger("padel.scheduler")
@@ -306,6 +308,24 @@ def ana_prediction(joueur_id: int):
 def ana_records(mois: Optional[str] = None, genre: Optional[str] = None):
     with get_db() as conn:
         return analytics_records(conn, mois, genre)
+
+
+@app.get("/analytics/evolution-nationalites")
+def ana_evolution_nationalites(genre: Optional[str] = None, top_pays: int = 5):
+    with get_db() as conn:
+        return analytics_evolution_nationalites(conn, genre, top_pays)
+
+
+@app.get("/analytics/rang-points")
+def ana_rang_points(mois: Optional[str] = None, genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_rang_points_curve(conn, mois, genre)
+
+
+@app.get("/analytics/region-tableau")
+def ana_region_tableau(mois: Optional[str] = None, genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_region_tableau(conn, mois, genre)
 
 
 # ── Serve frontend static files in production ────────────────────────────────

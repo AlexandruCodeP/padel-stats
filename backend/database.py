@@ -759,5 +759,134 @@ def analytics_records(conn, mois=None, genre=None):
     }
 
 
+def analytics_evolution_nationalites(conn, genre=None, top_pays=5):
+    """Evolution du nombre de joueurs par nationalité dans le temps (top N pays)."""
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+
+    top_nats = conn.execute(
+        f"""SELECT j.nationalite, COUNT(*) as cnt
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE j.nationalite IS NOT NULL AND j.nationalite != '' {gf}
+            GROUP BY j.nationalite ORDER BY cnt DESC LIMIT ?""",
+        gp + [top_pays],
+    ).fetchall()
+    nats = [r["nationalite"] for r in top_nats]
+
+    if not nats:
+        return {"nationalites": [], "data": []}
+
+    rows = conn.execute(
+        f"""SELECT c.mois, j.nationalite, COUNT(*) as count
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE j.nationalite IS NOT NULL AND j.nationalite != '' {gf}
+            GROUP BY c.mois, j.nationalite ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+
+    from collections import defaultdict
+    monthly = defaultdict(dict)
+    for r in rows:
+        if r["nationalite"] in nats:
+            monthly[r["mois"]][r["nationalite"]] = r["count"]
+
+    result = []
+    for m in sorted(monthly.keys()):
+        entry = {"mois": m}
+        for nat in nats:
+            entry[nat] = monthly[m].get(nat, 0)
+        result.append(entry)
+
+    return {"nationalites": nats, "data": result}
+
+
+def analytics_rang_points_curve(conn, mois=None, genre=None):
+    """Courbe rang → points moyens (forme logarithmique naturelle)."""
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+
+    bands = [
+        (1, 10), (11, 50), (51, 100), (101, 250), (251, 500),
+        (501, 1000), (1001, 2500), (2501, 5000), (5001, 10000), (10001, 99999),
+    ]
+    result = []
+    for lo, hi in bands:
+        row = conn.execute(
+            f"""SELECT AVG(c.points) as avg_pts, COUNT(*) as cnt
+                FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.rang BETWEEN ? AND ? AND c.points > 0 {gf}""",
+            [mois, lo, hi] + gp,
+        ).fetchone()
+        if row and row["cnt"] > 0:
+            label = f"Top {lo}" if lo == 1 else (f"{lo}+" if hi >= 99999 else f"{lo}-{hi}")
+            result.append({
+                "tranche": label,
+                "rang_centre": lo if lo == 1 else min((lo + hi) // 2, 30000),
+                "avg_pts": round(row["avg_pts"] or 0),
+                "count": row["cnt"],
+            })
+    return result
+
+
+def analytics_region_tableau(conn, mois=None, genre=None):
+    """Tableau récapitulatif enrichi par région/ligue avec âges et niveaux."""
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+
+    ligues = conn.execute(
+        f"""SELECT DISTINCT c.ligue FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.mois=? AND c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            ORDER BY c.ligue""",
+        [mois] + gp,
+    ).fetchall()
+
+    result = []
+    for l in ligues:
+        ligue_name = l["ligue"]
+        row = conn.execute(
+            f"""SELECT COUNT(*) as total,
+                       SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                       SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes,
+                       AVG(CASE WHEN c.age IS NOT NULL THEN c.age END) as avg_age,
+                       SUM(CASE WHEN c.rang <= 100 THEN 1 ELSE 0 END) as top100,
+                       SUM(CASE WHEN c.rang <= 500 THEN 1 ELSE 0 END) as top500,
+                       SUM(CASE WHEN c.rang <= 1000 THEN 1 ELSE 0 END) as top1000,
+                       SUM(CASE WHEN c.rang <= 5000 THEN 1 ELSE 0 END) as top5000,
+                       SUM(CASE WHEN c.age < 18 THEN 1 ELSE 0 END) as age_moins18,
+                       SUM(CASE WHEN c.age BETWEEN 18 AND 30 THEN 1 ELSE 0 END) as age_18_30,
+                       SUM(CASE WHEN c.age BETWEEN 31 AND 50 THEN 1 ELSE 0 END) as age_31_50,
+                       SUM(CASE WHEN c.age > 50 THEN 1 ELSE 0 END) as age_plus50
+                FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+                WHERE c.mois=? AND c.ligue=? {gf}""",
+            [mois, ligue_name] + gp,
+        ).fetchone()
+        result.append({
+            "ligue": ligue_name,
+            "total": row["total"],
+            "hommes": row["hommes"],
+            "femmes": row["femmes"],
+            "pct_femmes": round((row["femmes"] / row["total"] * 100) if row["total"] > 0 else 0, 1),
+            "avg_age": round(row["avg_age"] or 0, 1),
+            "top100": row["top100"],
+            "top500": row["top500"],
+            "top1000": row["top1000"],
+            "top5000": row["top5000"],
+            "age_moins18": row["age_moins18"],
+            "age_18_30": row["age_18_30"],
+            "age_31_50": row["age_31_50"],
+            "age_plus50": row["age_plus50"],
+        })
+    result.sort(key=lambda x: x["total"], reverse=True)
+    return result
+
+
 if __name__ == "__main__":
     init_db()

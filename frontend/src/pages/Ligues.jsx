@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, User, MapPin } from 'lucide-react';
-import { getLigues, getStats } from '../api';
+import { getLigues, getStats, getMois, getAnalyticsRegionTableau } from '../api';
 import KPICard from '../components/KPICard';
 import FranceMap from '../components/FranceMap';
 
@@ -9,14 +9,37 @@ export default function LiguesPage() {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedRegion, setSelectedRegion] = useState(null);
+    const [moisList, setMoisList] = useState([]);
+    const [mois, setMois] = useState('');
+    const [genre, setGenre] = useState('');
+    const [tableau, setTableau] = useState([]);
+    const [tableauLoading, setTableauLoading] = useState(false);
 
     useEffect(() => {
-        Promise.all([getLigues(), getStats()]).then(([l, s]) => {
+        Promise.all([getLigues(), getStats(), getMois()]).then(([l, s, m]) => {
             setLigues(l);
             setStats(s);
+            setMoisList(m);
+            if (m.length) setMois(m[0].mois);
             setLoading(false);
         });
     }, []);
+
+    useEffect(() => {
+        if (!mois) return;
+        setTableauLoading(true);
+        getAnalyticsRegionTableau(mois, genre || undefined).then(t => {
+            setTableau(t);
+            setTableauLoading(false);
+        });
+    }, [mois, genre]);
+
+    const formatMoisLabel = (m) => {
+        if (!m) return '';
+        const [y, mo] = m.split('-');
+        const months = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+        return `${months[parseInt(mo)]} ${y}`;
+    };
 
     const maxTotal = Math.max(...ligues.map(l => l.total), 1);
 
@@ -116,58 +139,73 @@ export default function LiguesPage() {
                 </div>
             )}
 
-            {/* Full data table */}
+            {/* Tableau récapitulatif enrichi */}
             <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-border">
-                    <h3 className="font-semibold text-text">📋 Données complètes</h3>
+                <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="font-semibold text-text">📋 Tableau récapitulatif par région</h3>
+                    <div className="flex items-center gap-3">
+                        <select value={mois} onChange={e => setMois(e.target.value)}
+                            className="px-3 py-1.5 rounded-xl border border-border text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20">
+                            {moisList.map(m => <option key={m.mois} value={m.mois}>{formatMoisLabel(m.mois)}</option>)}
+                        </select>
+                        <div className="flex rounded-xl border border-border overflow-hidden">
+                            {[{ val: '', label: 'Tous' }, { val: 'H', label: 'H' }, { val: 'F', label: 'F' }].map(g => (
+                                <button key={g.val} onClick={() => setGenre(g.val)}
+                                    className={`px-3 py-1.5 text-sm font-medium transition-colors ${genre === g.val ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-gray-50'}`}>
+                                    {g.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-                {loading ? (
-                    <div className="p-6 space-y-4">
-                        {[...Array(5)].map((_, i) => (
-                            <div key={i} className="animate-pulse">
-                                <div className="h-5 bg-gray-200 rounded w-full mb-2" />
-                                <div className="h-3 bg-gray-200 rounded w-2/3" />
-                            </div>
-                        ))}
+                {tableauLoading ? (
+                    <div className="p-6 space-y-3">
+                        {[...Array(5)].map((_, i) => <div key={i} className="animate-pulse h-8 bg-gray-200 rounded" />)}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-xs">
                             <thead>
                                 <tr className="bg-gray-50">
-                                    <th className="px-4 py-3 text-left font-medium text-text-secondary">#</th>
-                                    <th className="px-4 py-3 text-left font-medium text-text-secondary">Ligue</th>
-                                    <th className="px-4 py-3 text-right font-medium text-text-secondary">Total</th>
-                                    <th className="px-4 py-3 text-right font-medium text-text-secondary">Hommes</th>
-                                    <th className="px-4 py-3 text-right font-medium text-text-secondary">Femmes</th>
-                                    <th className="px-4 py-3 text-left font-medium text-text-secondary w-1/3">Proportion</th>
+                                    <th className="px-3 py-3 text-left font-medium text-text-secondary">#</th>
+                                    <th className="px-3 py-3 text-left font-medium text-text-secondary">Ligue</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">Total</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary text-homme">H</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary text-femme">F</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary text-femme">%F</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">Âge moy.</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">Top 100</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">Top 500</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">Top 1000</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">Top 5000</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">-18 ans</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">18-30</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">31-50</th>
+                                    <th className="px-3 py-3 text-right font-medium text-text-secondary">51+</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {ligues.map((l, i) => (
+                                {tableau.map((l, i) => (
                                     <tr key={i} className={`border-t border-border transition-colors ${isSelected(l.ligue) ? 'bg-primary/5' : 'hover:bg-gray-50'}`}>
-                                        <td className="px-4 py-3 font-bold text-text-secondary">{i + 1}</td>
-                                        <td className="px-4 py-3 font-semibold">{l.ligue}</td>
-                                        <td className="px-4 py-3 text-right font-medium">{l.total.toLocaleString('fr-FR')}</td>
-                                        <td className="px-4 py-3 text-right text-homme">{l.hommes.toLocaleString('fr-FR')}</td>
-                                        <td className="px-4 py-3 text-right text-femme">{l.femmes.toLocaleString('fr-FR')}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden flex">
-                                                    <div
-                                                        className="h-full bg-homme/70 transition-all duration-500"
-                                                        style={{ width: `${(l.hommes / maxTotal) * 100}%` }}
-                                                    />
-                                                    <div
-                                                        className="h-full bg-femme/70 transition-all duration-500"
-                                                        style={{ width: `${(l.femmes / maxTotal) * 100}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-xs text-text-secondary w-10 text-right">
-                                                    {stats ? `${((l.total / stats.total_joueurs) * 100).toFixed(1)}%` : ''}
-                                                </span>
-                                            </div>
+                                        <td className="px-3 py-2.5 font-bold text-text-secondary">{i + 1}</td>
+                                        <td className="px-3 py-2.5 font-semibold text-text whitespace-nowrap">{l.ligue}</td>
+                                        <td className="px-3 py-2.5 text-right font-medium">{l.total.toLocaleString('fr-FR')}</td>
+                                        <td className="px-3 py-2.5 text-right text-homme">{l.hommes.toLocaleString('fr-FR')}</td>
+                                        <td className="px-3 py-2.5 text-right text-femme">{l.femmes.toLocaleString('fr-FR')}</td>
+                                        <td className="px-3 py-2.5 text-right">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${l.pct_femmes >= 30 ? 'bg-femme/10 text-femme' : 'bg-gray-100 text-text-secondary'}`}>
+                                                {l.pct_femmes}%
+                                            </span>
                                         </td>
+                                        <td className="px-3 py-2.5 text-right">{l.avg_age > 0 ? `${l.avg_age} ans` : '-'}</td>
+                                        <td className="px-3 py-2.5 text-right font-medium text-yellow-600">{l.top100 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right">{l.top500 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right">{l.top1000 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right text-text-secondary">{l.top5000 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right text-text-secondary">{l.age_moins18 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right">{l.age_18_30 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right">{l.age_31_50 || 0}</td>
+                                        <td className="px-3 py-2.5 text-right text-text-secondary">{l.age_plus50 || 0}</td>
                                     </tr>
                                 ))}
                             </tbody>
