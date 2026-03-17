@@ -161,3 +161,20 @@ export const getAnalyticsRecords = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/analytics/records?${params}`);
 };
+export const getAnalyticsEvolutionNationalites = (genre, top_pays = 5) => {
+    const params = new URLSearchParams({ top_pays });
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-nationalites?${params}`);
+};
+export const getAnalyticsRangPoints = (mois, genre) => {
+    const params = new URLSearchParams();
+    if (mois) params.set('mois', mois);
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/rang-points?${params}`);
+};
+export const getAnalyticsRegionTableau = (mois, genre) => {
+    const params = new URLSearchParams();
+    if (mois) params.set('mois', mois);
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/region-tableau?${params}`);
+};
