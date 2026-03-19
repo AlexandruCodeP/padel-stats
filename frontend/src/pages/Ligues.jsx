@@ -55,7 +55,7 @@ export default function LiguesPage() {
             {/* Hero header */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6 mb-6">
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
-                <h1 className="text-2xl font-bold text-text relative">🗺️ Ligues régionales</h1>
+                <h1 className="text-2xl font-bold text-text relative">Ligues régionales</h1>
                 <p className="text-text-secondary text-sm mt-1 relative">Répartition des joueurs par ligue — carte interactive</p>
             </div>
 
@@ -94,7 +94,7 @@ export default function LiguesPage() {
 
                     {/* Top regions ranking */}
                     <div className="lg:col-span-2 bg-card rounded-xl border border-border p-5 shadow-sm">
-                        <h3 className="font-semibold text-text mb-3">🏅 Classement des ligues</h3>
+                        <h3 className="font-semibold text-text mb-3">Classement des ligues</h3>
                         <div className="space-y-2">
                             {ligues.slice(0, 13).map((l, i) => {
                                 const pct = (l.total / maxTotal) * 100;
@@ -129,7 +129,7 @@ export default function LiguesPage() {
                                                     style={{ width: `${((l.femmes / maxTotal) * 100)}%` }}
                                                 />
                                             </div>
-                                            <span className="text-xs text-femme font-medium w-10 text-right">{femPct}%♀</span>
+                                            <span className="text-xs text-femme font-medium w-10 text-right">{femPct}% F</span>
                                         </div>
                                     </div>
                                 );
@@ -142,7 +142,7 @@ export default function LiguesPage() {
             {/* Tableau récapitulatif enrichi */}
             <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="font-semibold text-text">📋 Tableau récapitulatif par région</h3>
+                    <h3 className="font-semibold text-text">Tableau récapitulatif par région</h3>
                     <div className="flex items-center gap-3">
                         <select value={mois} onChange={e => setMois(e.target.value)}
                             className="px-3 py-1.5 rounded-xl border border-border text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20">

@@ -51,10 +51,7 @@ export default function Joueur() {
         { stat: 'Best Rang', value: Math.max(0, 100 - ((latest.meilleur_classement || latest.rang || maxRank) / maxRank) * 100), fullMark: 100 },
     ];
 
-    const flagEmoji = (nat) => {
-        const flags = { 'FRA': '🇫🇷', 'ESP': '🇪🇸', 'ARG': '🇦🇷', 'BEL': '🇧🇪', 'POR': '🇵🇹', 'SWE': '🇸🇪', 'ITA': '🇮🇹', 'BRA': '🇧🇷', 'USA': '🇺🇸', 'GBR': '🇬🇧', 'ROM': '🇷🇴', 'TUN': '🇹🇳' };
-        return flags[nat] || '🏳️';
-    };
+    const flagEmoji = (nat) => nat || '';
 
     return (
         <div>
@@ -79,12 +76,12 @@ export default function Joueur() {
                             {joueur.genre && (
                                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${joueur.genre === 'H' ? 'bg-sky-100 text-sky-700' : 'bg-pink-100 text-pink-700'
                                     }`}>
-                                    {joueur.genre === 'H' ? '♂ Homme' : '♀ Femme'}
+                                    {joueur.genre === 'H' ? 'Homme' : 'Femme'}
                                 </span>
                             )}
                             {isAssimile && (
                                 <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                                    ⭐ Assimilé
+                                    Assimilé
                                 </span>
                             )}
                             {joueur.nationalite && <span className="flex items-center gap-1">{flagEmoji(joueur.nationalite)} {joueur.nationalite}</span>}
@@ -151,7 +148,7 @@ export default function Joueur() {
             {/* History table */}
             <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-border">
-                    <h3 className="font-semibold text-text">📋 Historique des classements</h3>
+                    <h3 className="font-semibold text-text">Historique des classements</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">

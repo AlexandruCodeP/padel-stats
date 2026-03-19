@@ -87,12 +87,24 @@ export default function Analytics() {
         </div>
     );
 
+    const SECTIONS = [
+        { id: 'sec-profil', label: 'Profil' },
+        { id: 'sec-classement', label: 'Classement' },
+        { id: 'sec-nationalites', label: 'Nationalités' },
+        { id: 'sec-avance', label: 'Avancé' },
+    ];
+
+    const scrollTo = (id) => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     return (
         <div>
             {/* Header + Filters */}
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-text">📈 Analytics</h1>
+                    <h1 className="text-2xl font-bold text-text">Analytics</h1>
                     <p className="text-text-secondary text-sm mt-1">Analyses avancées et statistiques uniques</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -114,6 +126,19 @@ export default function Analytics() {
                     </select>
                 </div>
             </div>
+
+            {/* Sub-tab navigation (mobile-friendly horizontal scroll) */}
+            <div className="flex gap-2 overflow-x-auto pb-1 mb-5 no-scrollbar">
+                {SECTIONS.map(s => (
+                    <button key={s.id} onClick={() => scrollTo(s.id)}
+                        className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border border-border bg-card text-text-secondary hover:text-primary hover:border-primary/40 transition-all">
+                        {s.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── Section anchors ── */}
+            <div id="sec-profil" className="-mt-2" />
 
             {/* ── Records du mois ──────────────────────────────────────────── */}
             {records && (records.plus_grosse_progression || records.joueur_plus_actif) && (
@@ -219,6 +244,7 @@ export default function Analytics() {
                 </div>
             )}
 
+            <div id="sec-classement" className="-mt-2" />
             <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {/* Hall of Fame */}
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
@@ -262,6 +288,7 @@ export default function Analytics() {
                 </div>
             </div>
 
+            <div id="sec-nationalites" className="-mt-2" />
             <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {/* Nationalités */}
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
@@ -375,8 +402,9 @@ export default function Analytics() {
             </div>
 
             {/* Advanced Analytics */}
+            <div id="sec-avance" className="-mt-2" />
             <div className="mt-6">
-                <h2 className="text-lg font-bold text-text mb-4">🧠 Analyses avancées</h2>
+                <h2 className="text-lg font-bold text-text mb-4">Analyses avancées</h2>
                 <div className="grid md:grid-cols-2 gap-6">
                     {/* Compétitivité */}
                     {competitivite.length > 0 && (
