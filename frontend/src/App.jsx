@@ -13,6 +13,11 @@ import ComparaisonMois from './pages/ComparaisonMois';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Fonctionnalites from './pages/Fonctionnalites';
+import Evolution from './pages/Evolution';
+import Nationalites from './pages/Nationalites';
+import Age from './pages/Age';
+import Points from './pages/Points';
+import Frequence from './pages/Frequence';
 
 
 function AppLayout({ children }) {
@@ -39,7 +44,7 @@ export default function App() {
           <Route path="/fonctionnalites" element={<Fonctionnalites />} />
 
 
-          {/* Pages protégées — redirigent vers /login si non connecté */}
+          {/* Pages protegees */}
           <Route path="/classement" element={<ProtectedRoute><AppLayout><Classement /></AppLayout></ProtectedRoute>} />
           <Route path="/joueur/:id" element={<ProtectedRoute><AppLayout><Joueur /></AppLayout></ProtectedRoute>} />
           <Route path="/recherche" element={<ProtectedRoute><AppLayout><Recherche /></AppLayout></ProtectedRoute>} />
@@ -48,6 +53,13 @@ export default function App() {
           <Route path="/analytics" element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
           <Route path="/comparateur" element={<ProtectedRoute><AppLayout><Comparateur /></AppLayout></ProtectedRoute>} />
           <Route path="/comparaison-mois" element={<ProtectedRoute><AppLayout><ComparaisonMois /></AppLayout></ProtectedRoute>} />
+
+          {/* Nouvelles pages Statistiques */}
+          <Route path="/evolution" element={<ProtectedRoute><AppLayout><Evolution /></AppLayout></ProtectedRoute>} />
+          <Route path="/nationalites" element={<ProtectedRoute><AppLayout><Nationalites /></AppLayout></ProtectedRoute>} />
+          <Route path="/age" element={<ProtectedRoute><AppLayout><Age /></AppLayout></ProtectedRoute>} />
+          <Route path="/points" element={<ProtectedRoute><AppLayout><Points /></AppLayout></ProtectedRoute>} />
+          <Route path="/frequence" element={<ProtectedRoute><AppLayout><Frequence /></AppLayout></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

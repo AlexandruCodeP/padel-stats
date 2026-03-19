@@ -59,36 +59,33 @@ export default function Comparateur() {
         const h1 = result.joueur1.historique[0] || {};
         const h2 = result.joueur2.historique[0] || {};
 
-        // Puissance — points normalisés entre les deux
+        // Points — normalisés entre les deux joueurs
         const maxPts = Math.max(h1.points || 0, h2.points || 0, 1);
-        const pu1 = Math.round(((h1.points || 0) / maxPts) * 100);
-        const pu2 = Math.round(((h2.points || 0) / maxPts) * 100);
+        const pts1 = Math.round(((h1.points || 0) / maxPts) * 100);
+        const pts2 = Math.round(((h2.points || 0) / maxPts) * 100);
 
-        // Défense — rang inversé (rang 1 = 100, rang 10 000 = 0)
-        const de1 = Math.max(0, Math.round(100 - (h1.rang || 10000) / 100));
-        const de2 = Math.max(0, Math.round(100 - (h2.rang || 10000) / 100));
+        // Classement — rang inversé (rang 1 = 100, rang élevé = score bas)
+        const maxRang = Math.max(h1.rang || 1, h2.rang || 1, 1);
+        const rk1 = Math.round((1 - ((h1.rang || maxRang) - 1) / Math.max(maxRang - 1, 1)) * 100);
+        const rk2 = Math.round((1 - ((h2.rang || maxRang) - 1) / Math.max(maxRang - 1, 1)) * 100);
 
-        // Constance — nb_tournois normalisés entre les deux
+        // Activité — nb de tournois normalisé
         const maxTrn = Math.max(h1.nb_tournois || 0, h2.nb_tournois || 0, 1);
-        const co1 = Math.round(((h1.nb_tournois || 0) / maxTrn) * 100);
-        const co2 = Math.round(((h2.nb_tournois || 0) / maxTrn) * 100);
+        const act1 = Math.round(((h1.nb_tournois || 0) / maxTrn) * 100);
+        const act2 = Math.round(((h2.nb_tournois || 0) / maxTrn) * 100);
 
-        // Volley — basé sur l'évolution (positif = momentum haut)
+        // Progression — basée sur l'évolution récente du classement
         const ev1 = parseEvol(h1.evolution);
         const ev2 = parseEvol(h2.evolution);
         const eMax = Math.max(Math.abs(ev1), Math.abs(ev2), 1);
-        const vo1 = Math.min(100, Math.max(0, Math.round(50 + (ev1 / eMax) * 50)));
-        const vo2 = Math.min(100, Math.max(0, Math.round(50 + (ev2 / eMax) * 50)));
-
-        // Physique — âge (plus jeune = meilleur physique, 18 ans = 100, 55 ans = 10)
-        const phy = (age) => age ? Math.max(10, Math.min(100, Math.round(118 - age * 1.5))) : 60;
+        const prog1 = Math.min(100, Math.max(0, Math.round(50 + (ev1 / eMax) * 50)));
+        const prog2 = Math.min(100, Math.max(0, Math.round(50 + (ev2 / eMax) * 50)));
 
         return [
-            { axis: 'Puissance', j1: pu1, j2: pu2 },
-            { axis: 'Défense',   j1: de1, j2: de2 },
-            { axis: 'Constance', j1: co1, j2: co2 },
-            { axis: 'Volley',    j1: vo1, j2: vo2 },
-            { axis: 'Physique',  j1: phy(h1.age), j2: phy(h2.age) },
+            { axis: 'Points',      j1: pts1, j2: pts2 },
+            { axis: 'Classement',  j1: rk1,  j2: rk2 },
+            { axis: 'Activité',    j1: act1, j2: act2 },
+            { axis: 'Progression', j1: prog1, j2: prog2 },
         ];
     };
 
@@ -265,10 +262,10 @@ export default function Comparateur() {
                     {radarData.length > 0 && (
                         <div className="bg-card rounded-2xl border border-border shadow-sm p-5 mb-4">
                             <h3 className="font-semibold text-text mb-1 flex items-center gap-2">
-                                <span className="w-5 h-5 text-sm flex items-center justify-center">🕸️</span>
-                                Profil de jeu
+                                <span className="w-5 h-5 text-sm flex items-center justify-center">📊</span>
+                                Profil comparatif
                             </h3>
-                            <p className="text-xs text-text-secondary mb-4">Comparaison multi-dimensionnelle basée sur les stats de classement</p>
+                            <p className="text-xs text-text-secondary mb-4">Scores normalisés (0-100) basés sur les données FFT : points, rang, tournois joués et évolution récente</p>
                             <ResponsiveContainer width="100%" height={300}>
                                 <RadarChart data={radarData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
                                     <PolarGrid stroke="#e2e8f0" strokeDasharray="0" />
