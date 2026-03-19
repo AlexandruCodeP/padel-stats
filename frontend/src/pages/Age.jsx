@@ -111,7 +111,7 @@ export default function Age() {
                             {Icon && <Icon className="w-3.5 h-3.5" />}
                             {label}
                         </div>
-                        <div className="text-2xl font-bold text-text">{value ?? '-'} <span className="text-sm font-normal text-text-secondary">ans</span></div>
+                        <div className="text-2xl font-bold text-text font-data">{value ?? '-'} <span className="text-sm font-normal text-text-secondary">ans</span></div>
                         <div className="text-xs text-text-secondary mt-0.5">{total?.toLocaleString('fr-FR')} joueurs</div>
                     </div>
                 ))}
@@ -131,7 +131,7 @@ export default function Age() {
                     ].map(({ label, value, color }) => (
                         <div key={label} className="bg-card/80 rounded-xl p-4 text-center">
                             <div className="text-xs text-text-secondary mb-1">{label}</div>
-                            <div className={`text-2xl font-bold ${color}`}>{value ?? '-'} <span className="text-sm font-normal text-text-secondary">ans</span></div>
+                            <div className={`text-2xl font-bold font-data ${color}`}>{value ?? '-'} <span className="text-sm font-normal text-text-secondary">ans</span></div>
                             {profilAllH?.avg_age && profilAllF?.avg_age && label.includes('tous') && label.includes('F') && (
                                 <div className="text-xs text-text-secondary mt-1">
                                     Ecart: {Math.abs(profilAllH.avg_age - profilAllF.avg_age).toFixed(1)} ans

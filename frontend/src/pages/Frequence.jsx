@@ -93,19 +93,19 @@ export default function Frequence() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
                     <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Users className="w-3.5 h-3.5" /> Total competiteurs</div>
-                    <div className="text-2xl font-bold text-text">{total.toLocaleString('fr-FR')}</div>
+                    <div className="text-2xl font-bold text-text font-data">{total.toLocaleString('fr-FR')}</div>
                 </div>
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
                     <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Repeat className="w-3.5 h-3.5" /> Tournois moy. (tous)</div>
-                    <div className="text-2xl font-bold text-text">{profilAll?.avg_tournois ?? '-'}</div>
+                    <div className="text-2xl font-bold text-text font-data">{profilAll?.avg_tournois ?? '-'}</div>
                 </div>
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
                     <div className="text-xs text-text-secondary mb-1">Tournois moy. Top 100</div>
-                    <div className="text-2xl font-bold text-primary">{profil100?.avg_tournois ?? '-'}</div>
+                    <div className="text-2xl font-bold text-primary font-data">{profil100?.avg_tournois ?? '-'}</div>
                 </div>
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
                     <div className="text-xs text-text-secondary mb-1">Tournois moy. Top 1 000</div>
-                    <div className="text-2xl font-bold text-primary">{profil1000?.avg_tournois ?? '-'}</div>
+                    <div className="text-2xl font-bold text-primary font-data">{profil1000?.avg_tournois ?? '-'}</div>
                 </div>
             </div>
 

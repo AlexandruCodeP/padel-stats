@@ -141,7 +141,7 @@ export default function Analytics() {
                                                 <div className="text-xs font-medium text-success">ce mois-ci</div>
                                             </div>
                                         </div>
-                                        <span className="text-lg font-bold text-success font-mono">
+                                        <span className="text-lg font-bold text-success font-data">
                                             {evol?.startsWith('+') ? evol : `+${evol}`}
                                         </span>
                                     </div>
@@ -176,7 +176,7 @@ export default function Analytics() {
                                                 <div className="text-xs font-medium text-yellow-600">le plus de tournois</div>
                                             </div>
                                         </div>
-                                        <span className="text-lg font-bold text-yellow-600 font-mono">
+                                        <span className="text-lg font-bold text-yellow-600 font-data">
                                             {p.nb_tournois} <span className="text-xs font-normal text-text-secondary">tournois</span>
                                         </span>
                                     </div>

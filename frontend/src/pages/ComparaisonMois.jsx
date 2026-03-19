@@ -29,7 +29,7 @@ const DarkTooltip = ({ active, payload, label }) => {
                 <div key={i} className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ background: p.fill }} />
                     <span className="text-white/60">{p.name} :</span>
-                    <span className="font-mono font-semibold">{p.value?.toLocaleString('fr-FR')}</span>
+                    <span className="font-data font-semibold">{p.value?.toLocaleString('fr-FR')}</span>
                 </div>
             ))}
         </div>
@@ -49,7 +49,7 @@ function KpiDelta({ label, valA, valB, color = '#38BDF8', icon: Icon }) {
             </div>
             <div className="flex items-end gap-4">
                 <div>
-                    <div className="text-2xl font-extrabold font-mono text-text">
+                    <div className="text-2xl font-extrabold font-data text-text">
                         {valB?.toLocaleString('fr-FR')}
                     </div>
                     <div className="text-xs text-text-secondary mt-0.5">
@@ -383,9 +383,9 @@ export default function ComparaisonMois() {
                                             ].map((row, i) => (
                                                 <tr key={i} className={`border-b border-border/40 ${i === 1 ? 'font-semibold' : ''}`}>
                                                     <td className="py-2 px-3 text-text">{row.label}</td>
-                                                    <td className="py-2 px-3 text-right font-mono text-text">{row.total?.toLocaleString('fr-FR')}</td>
-                                                    <td className="py-2 px-3 text-right font-mono" style={{ color: HOMME }}>{row.nb_hommes?.toLocaleString('fr-FR')}</td>
-                                                    <td className="py-2 px-3 text-right font-mono" style={{ color: FEMME }}>{row.nb_femmes?.toLocaleString('fr-FR')}</td>
+                                                    <td className="py-2 px-3 text-right font-data text-text">{row.total?.toLocaleString('fr-FR')}</td>
+                                                    <td className="py-2 px-3 text-right font-data" style={{ color: HOMME }}>{row.nb_hommes?.toLocaleString('fr-FR')}</td>
+                                                    <td className="py-2 px-3 text-right font-data" style={{ color: FEMME }}>{row.nb_femmes?.toLocaleString('fr-FR')}</td>
                                                 </tr>
                                             ))}
                                             {/* Delta row */}
@@ -396,7 +396,7 @@ export default function ComparaisonMois() {
                                                     delta(compared.kpis.dataA.nb_hommes, compared.kpis.dataB.nb_hommes),
                                                     delta(compared.kpis.dataA.nb_femmes, compared.kpis.dataB.nb_femmes),
                                                 ].map((d, i) => (
-                                                    <td key={i} className={`py-2 px-3 text-right font-mono text-xs font-bold ${d >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    <td key={i} className={`py-2 px-3 text-right font-data text-xs font-bold ${d >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                                                         {d >= 0 ? '+' : ''}{d?.toLocaleString('fr-FR')}
                                                     </td>
                                                 ))}

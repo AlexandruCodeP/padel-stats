@@ -113,7 +113,7 @@ export default function Evolution() {
                                 {Icon && <Icon className="w-3.5 h-3.5" />}
                                 {label}
                             </div>
-                            <div className={`text-2xl font-bold ${color || 'text-text'}`}>
+                            <div className={`text-2xl font-bold font-data ${color || 'text-text'}`}>
                                 {typeof value === 'number' ? value.toLocaleString('fr-FR') : value}
                             </div>
                             {delta !== null && (
@@ -149,7 +149,7 @@ export default function Evolution() {
                                                 <div className="text-xs font-medium text-success">ce mois-ci</div>
                                             </div>
                                         </div>
-                                        <span className="text-lg font-bold text-success font-mono">{p.evolution?.startsWith('+') ? p.evolution : `+${p.evolution}`}</span>
+                                        <span className="text-lg font-bold text-success font-data">{p.evolution?.startsWith('+') ? p.evolution : `+${p.evolution}`}</span>
                                     </div>
                                     <div className="font-bold text-text group-hover:text-primary transition-colors">{p.prenom} {p.nom}</div>
                                     <div className="flex items-center gap-2 mt-1">
@@ -176,7 +176,7 @@ export default function Evolution() {
                                                 <div className="text-xs font-medium text-yellow-600">le plus de tournois</div>
                                             </div>
                                         </div>
-                                        <span className="text-lg font-bold text-yellow-600 font-mono">{p.nb_tournois} <span className="text-xs font-normal text-text-secondary">tournois</span></span>
+                                        <span className="text-lg font-bold text-yellow-600 font-data">{p.nb_tournois} <span className="text-xs font-normal text-text-secondary">tournois</span></span>
                                     </div>
                                     <div className="font-bold text-text group-hover:text-primary transition-colors">{p.prenom} {p.nom}</div>
                                     <div className="flex items-center gap-2 mt-1">
@@ -274,7 +274,7 @@ export default function Evolution() {
                                             <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
                                         </div>
                                     </div>
-                                    <span className="text-sm font-bold text-success font-mono">{p.evolution}</span>
+                                    <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
                                 </div>
                             ))}
                         </div>
@@ -297,7 +297,7 @@ export default function Evolution() {
                                             <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
                                         </div>
                                     </div>
-                                    <span className="text-sm font-bold text-red-500 font-mono">{p.evolution}</span>
+                                    <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
                                 </div>
                             ))}
                         </div>
