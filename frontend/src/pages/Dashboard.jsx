@@ -109,7 +109,7 @@ export default function Dashboard() {
             {/* ── Header ── */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-text tracking-tight">📊 Dashboard</h1>
+                    <h1 className="text-2xl font-bold text-text tracking-tight">Dashboard</h1>
                     <p className="text-text-secondary text-sm mt-0.5">Vue d'ensemble du padel français</p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">

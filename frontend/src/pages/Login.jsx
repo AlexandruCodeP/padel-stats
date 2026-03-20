@@ -100,7 +100,7 @@ export default function Login() {
               transition={{ duration: 0.25 }}
             >
               <h1 className="text-white text-2xl font-extrabold tracking-tight mb-1">
-                {mode === 'login' ? 'Bon retour 👋' : 'Créer votre compte'}
+                {mode === 'login' ? 'Bon retour' : 'Créer votre compte'}
               </h1>
               <p className="text-[#475569] text-sm mb-6">
                 {mode === 'login'
@@ -213,7 +213,7 @@ export default function Login() {
                       disabled
                       className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[#1e293b] text-[#475569] text-xs font-medium cursor-not-allowed opacity-50"
                     >
-                      {provider === 'Google' ? '🔵' : '🎾'} {provider}
+                      {provider}
                     </button>
                   ))}
                 </div>

@@ -40,12 +40,12 @@ const dropdownRoutes = {
     compare: ['/comparateur', '/comparaison-mois'],
 };
 
-// Mobile bottom bar items (flat, limited)
+// Mobile bottom bar items
 const mobileLinks = [
     { to: '/classement', label: 'Classement', icon: BarChart3 },
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/evolution', label: 'Stats', icon: TrendingUp },
-    { to: '/comparateur', label: 'Comparer', icon: GitCompare },
+    { type: 'dropdown', label: 'Stats', icon: TrendingUp, key: 'stats' },
+    { type: 'dropdown', label: 'Comparer', icon: GitCompare, key: 'compare' },
     { to: '/recherche', label: 'Recherche', icon: Search },
 ];
 
@@ -61,6 +61,9 @@ export default function Navbar() {
         }
         return false;
     });
+
+    // Mobile dropdown panel
+    const [mobileDropdown, setMobileDropdown] = useState(null);
 
     // Which dropdowns are open
     const [openMenus, setOpenMenus] = useState(() => {
@@ -82,8 +85,9 @@ export default function Navbar() {
         }
     }, [dark]);
 
-    // Auto-open dropdown when navigating to a child route
+    // Auto-open dropdown when navigating to a child route + close mobile panel
     useEffect(() => {
+        setMobileDropdown(null);
         for (const [key, routes] of Object.entries(dropdownRoutes)) {
             if (routes.includes(location.pathname)) {
                 setOpenMenus(prev => ({ ...prev, [key]: true }));
@@ -284,8 +288,52 @@ export default function Navbar() {
             {/* ═══════════════════════════════════
                   MOBILE — Fixed Bottom Bar
                 ═══════════════════════════════════ */}
+
+            {/* Mobile sub-menu overlay */}
+            {mobileDropdown && (
+                <div
+                    className="md:hidden fixed inset-0 z-40 bg-black/20"
+                    onClick={() => setMobileDropdown(null)}
+                />
+            )}
+
+            {/* Mobile sub-menu panel */}
+            {mobileDropdown && (
+                <div
+                    className="md:hidden fixed left-0 right-0 z-[60]"
+                    style={{
+                        bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+                        backgroundColor: SIDEBAR_BG,
+                        borderTop: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '16px 16px 0 0',
+                    }}
+                >
+                    <div className="px-3 py-2 space-y-0.5">
+                        {navItems.find(i => i.key === mobileDropdown)?.children.map((child) => {
+                            const ChildIcon = child.icon;
+                            const isActive = location.pathname === child.to;
+                            return (
+                                <Link
+                                    key={child.to}
+                                    to={child.to}
+                                    onClick={() => setMobileDropdown(null)}
+                                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline transition-all duration-150"
+                                    style={{
+                                        color: isActive ? VOLT : '#CBD5E1',
+                                        backgroundColor: isActive ? 'rgba(204,255,0,0.1)' : 'transparent',
+                                    }}
+                                >
+                                    <ChildIcon style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+                                    <span className="text-sm font-medium">{child.label}</span>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             <nav
-                className="md:hidden fixed bottom-0 left-0 right-0 z-50"
+                className="md:hidden fixed bottom-0 left-0 right-0 z-[70]"
                 style={{
                     backgroundColor: SIDEBAR_BG,
                     borderTop: '1px solid rgba(255,255,255,0.07)',
@@ -293,20 +341,38 @@ export default function Navbar() {
                 }}
             >
                 <div className="flex items-center justify-around px-1 py-1.5">
-                    {mobileLinks.map(({ to, label, icon: Icon }) => {
-                        const active = location.pathname === to ||
-                            (to === '/evolution' && dropdownRoutes.stats.includes(location.pathname)) ||
-                            (to === '/comparateur' && dropdownRoutes.compare.includes(location.pathname));
+                    {mobileLinks.map((item) => {
+                        if (item.type === 'dropdown') {
+                            const Icon = item.icon;
+                            const isActive = dropdownRoutes[item.key]?.includes(location.pathname);
+                            const isOpen = mobileDropdown === item.key;
+                            return (
+                                <button
+                                    key={item.key}
+                                    onClick={() => setMobileDropdown(prev => prev === item.key ? null : item.key)}
+                                    className="flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl transition-all duration-200 flex-1 min-w-0"
+                                    style={{ color: isActive || isOpen ? VOLT : INACTIVE }}
+                                >
+                                    <Icon className="w-5 h-5 shrink-0" />
+                                    <span className="font-medium truncate" style={{ fontSize: '9px' }}>
+                                        {item.label}
+                                    </span>
+                                </button>
+                            );
+                        }
+                        const Icon = item.icon;
+                        const isActive = location.pathname === item.to;
                         return (
                             <Link
-                                key={to}
-                                to={to}
+                                key={item.to}
+                                to={item.to}
+                                onClick={() => setMobileDropdown(null)}
                                 className="flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl no-underline transition-all duration-200 flex-1 min-w-0"
-                                style={{ color: active ? VOLT : INACTIVE }}
+                                style={{ color: isActive ? VOLT : INACTIVE }}
                             >
                                 <Icon className="w-5 h-5 shrink-0" />
                                 <span className="font-medium truncate" style={{ fontSize: '9px' }}>
-                                    {label}
+                                    {item.label}
                                 </span>
                             </Link>
                         );

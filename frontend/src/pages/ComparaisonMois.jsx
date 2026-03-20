@@ -215,7 +215,7 @@ export default function ComparaisonMois() {
             {/* Header */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6 mb-6">
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
-                <h1 className="text-2xl font-bold text-text relative">📅 Comparaison de mois</h1>
+                <h1 className="text-2xl font-bold text-text relative">Comparaison de mois</h1>
                 <p className="text-text-secondary text-sm mt-1 relative">Analysez l'évolution du classement entre deux périodes</p>
             </div>
 
@@ -413,10 +413,10 @@ export default function ComparaisonMois() {
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <h3 className="font-semibold text-text">
-                                            {tab === 1 && '🚀 Top montées (rang)'}
-                                            {tab === 2 && '📉 Top chutes (rang)'}
-                                            {tab === 3 && '💰 Plus de points gagnés'}
-                                            {tab === 4 && '🔻 Plus de points perdus'}
+                                            {tab === 1 && 'Top montées (rang)'}
+                                            {tab === 2 && 'Top chutes (rang)'}
+                                            {tab === 3 && 'Plus de points gagnés'}
+                                            {tab === 4 && 'Plus de points perdus'}
                                         </h3>
                                         <p className="text-xs text-text-secondary mt-0.5">
                                             Comparaison sur les top 2 000 joueurs · {fmtMois(moisA)} → {fmtMois(moisB)}

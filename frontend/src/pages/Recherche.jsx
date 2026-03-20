@@ -50,7 +50,7 @@ export default function Recherche() {
             {/* Hero header */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6 mb-6">
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
-                <h1 className="text-2xl font-bold text-text relative">🔍 Recherche de joueurs</h1>
+                <h1 className="text-2xl font-bold text-text relative">Recherche de joueurs</h1>
                 <p className="text-text-secondary text-sm mt-1 relative">Trouvez n'importe quel joueur parmi 135 000+ classés en France</p>
             </div>
 

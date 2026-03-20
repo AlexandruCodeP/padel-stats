@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, GitCompare, Trophy, TrendingUp, MapPin, Calendar, Zap, ChevronRight } from 'lucide-react';
+import { Search, GitCompare, Trophy, TrendingUp, MapPin, Calendar, Zap, ChevronRight, Activity } from 'lucide-react';
 import { rechercher, getComparaison } from '../api';
 import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -144,7 +144,7 @@ export default function Comparateur() {
             {/* Hero header */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6 mb-6">
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
-                <h1 className="text-2xl font-bold text-text relative">⚔️ Comparateur</h1>
+                <h1 className="text-2xl font-bold text-text relative">Comparateur</h1>
                 <p className="text-text-secondary text-sm mt-1 relative">Comparez deux joueurs côte à côte</p>
             </div>
 
@@ -262,7 +262,7 @@ export default function Comparateur() {
                     {radarData.length > 0 && (
                         <div className="bg-card rounded-2xl border border-border shadow-sm p-5 mb-4">
                             <h3 className="font-semibold text-text mb-1 flex items-center gap-2">
-                                <span className="w-5 h-5 text-sm flex items-center justify-center">📊</span>
+                                <Activity className="w-4 h-4 text-primary" />
                                 Profil comparatif
                             </h3>
                             <p className="text-xs text-text-secondary mb-4">Scores normalisés (0-100) basés sur les données FFT : points, rang, tournois joués et évolution récente</p>
