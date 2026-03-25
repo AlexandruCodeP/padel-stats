@@ -1,7 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, Search, Users, LayoutDashboard, TrendingUp, GitCompare, Moon, Sun, Activity, Home, CalendarArrowUp, LogOut, ChevronDown, Globe, Clock, Award, Repeat } from 'lucide-react';
+import { BarChart3, Search, Users, LayoutDashboard, TrendingUp, GitCompare, Moon, Sun, Activity, Home, CalendarArrowUp, ChevronDown, Globe, Clock, Award, Repeat } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
 
 const SIDEBAR_BG = '#0F172A';
 const VOLT = '#CCFF00';
@@ -52,7 +51,6 @@ const mobileLinks = [
 export default function Navbar() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
 
     const [dark, setDark] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -95,18 +93,9 @@ export default function Navbar() {
         }
     }, [location.pathname]);
 
-    function handleLogout() {
-        logout();
-        navigate('/login');
-    }
-
     function toggleMenu(key) {
         setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
     }
-
-    const initials = user?.name
-        ? user.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-        : '?';
 
     return (
         <>
@@ -244,44 +233,18 @@ export default function Navbar() {
                     </div>
                 </div>
 
-                {/* ── User widget ── */}
+                {/* ── Home link ── */}
                 <div className="px-4 py-4 shrink-0">
-                    {user ? (
-                        <div className="flex items-center gap-3 px-3 py-3 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-                                style={{ backgroundColor: VOLT, color: '#020617' }}
-                            >
-                                {initials}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate" style={{ color: '#E2E8F0' }}>
-                                    {user.name}
-                                </div>
-                                <div className="text-xs truncate" style={{ color: INACTIVE }}>
-                                    {user.email}
-                                </div>
-                            </div>
-                            <button
-                                onClick={handleLogout}
-                                title="Se deconnecter"
-                                className="shrink-0 p-1.5 rounded-lg transition-colors hover:bg-red-500/20"
-                                style={{ color: INACTIVE }}
-                                onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                                onMouseLeave={e => e.currentTarget.style.color = INACTIVE}
-                            >
-                                <LogOut size={15} />
-                            </button>
-                        </div>
-                    ) : (
-                        <Link
-                            to="/login"
-                            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
-                            style={{ backgroundColor: VOLT, color: '#020617' }}
-                        >
-                            Se connecter
-                        </Link>
-                    )}
+                    <Link
+                        to="/"
+                        className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: INACTIVE }}
+                        onMouseEnter={e => e.currentTarget.style.color = HOVER_COLOR}
+                        onMouseLeave={e => e.currentTarget.style.color = INACTIVE}
+                    >
+                        <Home size={15} />
+                        Accueil
+                    </Link>
                 </div>
             </aside>
 

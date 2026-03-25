@@ -340,39 +340,43 @@ def dashboard_overview(conn, mois=None, genre=None):
     }
 
 
-def dashboard_progressions(conn, mois=None, genre=None, limit=10):
+def dashboard_progressions(conn, mois=None, genre=None, limit=10, rang_max=None):
     if not mois:
         mois = get_dernier_mois(conn)
     if not mois:
         return []
     gf = "AND c.genre=?" if genre else ""
     gp = [genre] if genre else []
+    rf = "AND c.rang <= ?" if rang_max else ""
+    rp = [rang_max] if rang_max else []
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
-              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf}
+              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf} {rf}
             ORDER BY CAST(REPLACE(c.evolution,'+','') AS INTEGER) DESC LIMIT ?""",
-        [mois] + gp + [limit],
+        [mois] + gp + rp + [limit],
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def dashboard_chutes(conn, mois=None, genre=None, limit=10):
+def dashboard_chutes(conn, mois=None, genre=None, limit=10, rang_max=None):
     if not mois:
         mois = get_dernier_mois(conn)
     if not mois:
         return []
     gf = "AND c.genre=?" if genre else ""
     gp = [genre] if genre else []
+    rf = "AND c.rang <= ?" if rang_max else ""
+    rp = [rang_max] if rang_max else []
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
               AND CAST(REPLACE(c.evolution,'-','') AS INTEGER) > 0
-              AND c.evolution LIKE '-%' {gf}
+              AND c.evolution LIKE '-%' {gf} {rf}
             ORDER BY CAST(REPLACE(c.evolution,'-','') AS INTEGER) DESC LIMIT ?""",
-        [mois] + gp + [limit],
+        [mois] + gp + rp + [limit],
     ).fetchall()
     return [dict(r) for r in rows]
 

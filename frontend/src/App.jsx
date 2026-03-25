@@ -1,6 +1,4 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import Classement from './pages/Classement';
 import Joueur from './pages/Joueur';
@@ -10,9 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import Comparateur from './pages/Comparateur';
 import ComparaisonMois from './pages/ComparaisonMois';
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import Fonctionnalites from './pages/Fonctionnalites';
+import Welcome from './pages/Welcome';
 import Evolution from './pages/Evolution';
 import Nationalites from './pages/Nationalites';
 import Age from './pages/Age';
@@ -35,33 +31,28 @@ function AppLayout({ children }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Pages publiques */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/fonctionnalites" element={<Fonctionnalites />} />
+    <BrowserRouter>
+      <Routes>
+        {/* Page d'accueil */}
+        <Route path="/" element={<Welcome />} />
 
+        {/* Pages principales */}
+        <Route path="/classement" element={<AppLayout><Classement /></AppLayout>} />
+        <Route path="/joueur/:id" element={<AppLayout><Joueur /></AppLayout>} />
+        <Route path="/recherche" element={<AppLayout><Recherche /></AppLayout>} />
+        <Route path="/ligues" element={<AppLayout><LiguesPage /></AppLayout>} />
+        <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
+        <Route path="/analytics" element={<AppLayout><Analytics /></AppLayout>} />
+        <Route path="/comparateur" element={<AppLayout><Comparateur /></AppLayout>} />
+        <Route path="/comparaison-mois" element={<AppLayout><ComparaisonMois /></AppLayout>} />
 
-          {/* Pages protegees */}
-          <Route path="/classement" element={<ProtectedRoute><AppLayout><Classement /></AppLayout></ProtectedRoute>} />
-          <Route path="/joueur/:id" element={<ProtectedRoute><AppLayout><Joueur /></AppLayout></ProtectedRoute>} />
-          <Route path="/recherche" element={<ProtectedRoute><AppLayout><Recherche /></AppLayout></ProtectedRoute>} />
-          <Route path="/ligues" element={<ProtectedRoute><AppLayout><LiguesPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/analytics" element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
-          <Route path="/comparateur" element={<ProtectedRoute><AppLayout><Comparateur /></AppLayout></ProtectedRoute>} />
-          <Route path="/comparaison-mois" element={<ProtectedRoute><AppLayout><ComparaisonMois /></AppLayout></ProtectedRoute>} />
-
-          {/* Nouvelles pages Statistiques */}
-          <Route path="/evolution" element={<ProtectedRoute><AppLayout><Evolution /></AppLayout></ProtectedRoute>} />
-          <Route path="/nationalites" element={<ProtectedRoute><AppLayout><Nationalites /></AppLayout></ProtectedRoute>} />
-          <Route path="/age" element={<ProtectedRoute><AppLayout><Age /></AppLayout></ProtectedRoute>} />
-          <Route path="/points" element={<ProtectedRoute><AppLayout><Points /></AppLayout></ProtectedRoute>} />
-          <Route path="/frequence" element={<ProtectedRoute><AppLayout><Frequence /></AppLayout></ProtectedRoute>} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+        {/* Pages Statistiques */}
+        <Route path="/evolution" element={<AppLayout><Evolution /></AppLayout>} />
+        <Route path="/nationalites" element={<AppLayout><Nationalites /></AppLayout>} />
+        <Route path="/age" element={<AppLayout><Age /></AppLayout>} />
+        <Route path="/points" element={<AppLayout><Points /></AppLayout>} />
+        <Route path="/frequence" element={<AppLayout><Frequence /></AppLayout>} />
+      </Routes>
+    </BrowserRouter>
   );
 }

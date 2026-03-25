@@ -19,11 +19,21 @@ const CustomTooltip = ({ active, payload, label, labelFormatter }) => {
     );
 };
 
+const RANG_TIERS = [
+    { val: '', label: 'Tous' },
+    { val: '1000', label: 'Top 1000' },
+    { val: '500', label: 'Top 500' },
+    { val: '100', label: 'Top 100' },
+    { val: '50', label: 'Top 50' },
+    { val: '20', label: 'Top 20' },
+];
+
 export default function Evolution() {
     const navigate = useNavigate();
     const [moisList, setMoisList] = useState([]);
     const [mois, setMois] = useState('');
     const [genre, setGenre] = useState('');
+    const [rangMax, setRangMax] = useState('');
     const [difficulte, setDifficulte] = useState([]);
     const [inflation, setInflation] = useState([]);
     const [feminine, setFeminine] = useState([]);
@@ -39,20 +49,21 @@ export default function Evolution() {
         if (!mois) return;
         setLoading(true);
         const g = genre || undefined;
+        const rm = rangMax ? parseInt(rangMax) : null;
         Promise.all([
             getAnalyticsDifficulte(mois, g),
             getAnalyticsInflation(g),
             getAnalyticsFeminine(),
             getAnalyticsRecords(mois, g),
             getDashboardEvolution(g),
-            getDashboardProgressions(mois, g, 10),
-            getDashboardChutes(mois, g, 10),
+            getDashboardProgressions(mois, g, 10, rm),
+            getDashboardChutes(mois, g, 10, rm),
         ]).then(([d, inf, fem, rec, evo, prog, ch]) => {
             setDifficulte(d); setInflation(inf); setFeminine(fem); setRecords(rec);
             setEvolution(evo); setProgressions(prog); setChutes(ch);
             setLoading(false);
         });
-    }, [mois, genre]);
+    }, [mois, genre, rangMax]);
 
     const formatMoisLabel = (m) => {
         if (!m) return '';
@@ -96,6 +107,10 @@ export default function Evolution() {
                             </button>
                         ))}
                     </div>
+                    <select value={rangMax} onChange={e => setRangMax(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-border text-sm bg-card text-text focus:outline-none focus:ring-2 focus:ring-primary/20">
+                        {RANG_TIERS.map(t => <option key={t.val} value={t.val}>{t.label}</option>)}
+                    </select>
                 </div>
             </div>
 
@@ -260,7 +275,7 @@ export default function Evolution() {
             <div className="grid md:grid-cols-2 gap-6 mb-6">
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                     <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-success" /> Top 10 progressions
+                        <TrendingUp className="w-4 h-4 text-success" /> Top 10 progressions {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
                     </h3>
                     {progressions.length > 0 ? (
                         <div className="space-y-1.5">
@@ -283,7 +298,7 @@ export default function Evolution() {
 
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                     <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
-                        <TrendingDown className="w-4 h-4 text-red-500" /> Top 10 chutes
+                        <TrendingDown className="w-4 h-4 text-red-500" /> Top 10 chutes {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
                     </h3>
                     {chutes.length > 0 ? (
                         <div className="space-y-1.5">
