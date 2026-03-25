@@ -31,6 +31,7 @@ from database import (
     analytics_predictions, analytics_records,
     analytics_evolution_nationalites, analytics_rang_points_curve,
     analytics_region_tableau,
+    analytics_evolution_assimiles, analytics_evolution_age_moyen,
 )
 
 logger = logging.getLogger("padel.scheduler")
@@ -326,6 +327,18 @@ def ana_rang_points(mois: Optional[str] = None, genre: Optional[str] = None):
 def ana_region_tableau(mois: Optional[str] = None, genre: Optional[str] = None):
     with get_db() as conn:
         return analytics_region_tableau(conn, mois, genre)
+
+
+@app.get("/analytics/evolution-assimiles")
+def ana_evolution_assimiles(genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_evolution_assimiles(conn, genre)
+
+
+@app.get("/analytics/evolution-age-moyen")
+def ana_evolution_age_moyen():
+    with get_db() as conn:
+        return analytics_evolution_age_moyen(conn)
 
 
 # ── Serve frontend static files in production ────────────────────────────────

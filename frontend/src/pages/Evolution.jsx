@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
-import { getMois, getAnalyticsDifficulte, getAnalyticsInflation, getAnalyticsFeminine, getAnalyticsRecords, getDashboardEvolution, getDashboardProgressions, getDashboardChutes } from '../api';
+import { getMois, getAnalyticsDifficulte, getAnalyticsInflation, getAnalyticsFeminine, getAnalyticsRecords, getDashboardEvolution, getDashboardProgressions, getDashboardChutes, getAnalyticsEvolutionAssimiles } from '../api';
 import { TrendingUp, TrendingDown, Zap, Flame, Users, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -41,6 +41,7 @@ export default function Evolution() {
     const [evolution, setEvolution] = useState([]);
     const [progressions, setProgressions] = useState([]);
     const [chutes, setChutes] = useState([]);
+    const [assimiles, setAssimiles] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
@@ -58,9 +59,10 @@ export default function Evolution() {
             getDashboardEvolution(g),
             getDashboardProgressions(mois, g, 10, rm),
             getDashboardChutes(mois, g, 10, rm),
-        ]).then(([d, inf, fem, rec, evo, prog, ch]) => {
+            getAnalyticsEvolutionAssimiles(g),
+        ]).then(([d, inf, fem, rec, evo, prog, ch, assim]) => {
             setDifficulte(d); setInflation(inf); setFeminine(fem); setRecords(rec);
-            setEvolution(evo); setProgressions(prog); setChutes(ch);
+            setEvolution(evo); setProgressions(prog); setChutes(ch); setAssimiles(assim);
             setLoading(false);
         });
     }, [mois, genre, rangMax]);
@@ -358,6 +360,47 @@ export default function Evolution() {
                             <Bar dataKey="hommes" stackId="a" fill={HOMME} name="Hommes" />
                             <Bar dataKey="femmes" stackId="a" fill={FEMME} radius={[8, 8, 0, 0]} name="Femmes" />
                         </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Evolution des assimilés */}
+            {assimiles.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mt-6">
+                    <h3 className="font-semibold text-text mb-1">Evolution du nombre d'assimilés</h3>
+                    <p className="text-xs text-text-secondary mb-4">Joueurs assimilés (étrangers classés FFT) — nombre et pourcentage dans le temps</p>
+                    {(() => {
+                        const latest = assimiles[assimiles.length - 1];
+                        const prev = assimiles.length >= 2 ? assimiles[assimiles.length - 2] : null;
+                        const delta = prev ? latest.assimiles - prev.assimiles : null;
+                        return (
+                            <div className="grid grid-cols-3 gap-3 mb-4">
+                                <div className="text-center p-3 bg-amber-500/10 rounded-xl">
+                                    <div className="text-xl font-bold text-amber-600">{latest.assimiles.toLocaleString('fr-FR')}</div>
+                                    <div className="text-xs text-text-secondary">Assimilés</div>
+                                    {delta !== null && <div className={`text-xs mt-1 ${delta >= 0 ? 'text-success' : 'text-red-500'}`}>{delta >= 0 ? '+' : ''}{delta}</div>}
+                                </div>
+                                <div className="text-center p-3 bg-amber-500/10 rounded-xl">
+                                    <div className="text-xl font-bold text-amber-600">{latest.pct_assimiles}%</div>
+                                    <div className="text-xs text-text-secondary">% du total</div>
+                                </div>
+                                <div className="text-center p-3 bg-primary/10 rounded-xl">
+                                    <div className="text-xl font-bold text-primary">{latest.total.toLocaleString('fr-FR')}</div>
+                                    <div className="text-xs text-text-secondary">Total classés</div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                    <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={assimiles}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip labelFormatter={formatMoisLabel} />} />
+                            <Legend />
+                            <Line yAxisId="left" type="monotone" dataKey="assimiles" name="Nb assimilés" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                            <Line yAxisId="right" type="monotone" dataKey="pct_assimiles" name="% assimilés" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+                        </LineChart>
                     </ResponsiveContainer>
                 </div>
             )}

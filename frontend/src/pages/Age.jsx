@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { getMois, getAnalyticsAge, getAnalyticsProfil } from '../api';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
+import { getMois, getAnalyticsAge, getAnalyticsProfil, getAnalyticsEvolutionAgeMoyen } from '../api';
 import { Clock, Users, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const HOMME = '#38BDF8';
@@ -32,6 +32,7 @@ export default function Age() {
     const [profilAllF, setProfilAllF] = useState(null);
     const [profil100H, setProfil100H] = useState(null);
     const [profil100F, setProfil100F] = useState(null);
+    const [evolutionAge, setEvolutionAge] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
@@ -51,11 +52,13 @@ export default function Age() {
             getAnalyticsProfil(mois, 50000, 'F'),
             getAnalyticsProfil(mois, 100, 'H'),
             getAnalyticsProfil(mois, 100, 'F'),
-        ]).then(([a, aH, aF, pAll, p10, p100, p1000, pAllH, pAllF, p100H, p100F]) => {
+            getAnalyticsEvolutionAgeMoyen(),
+        ]).then(([a, aH, aF, pAll, p10, p100, p1000, pAllH, pAllF, p100H, p100F, evoAge]) => {
             setAges(a); setAgesH(aH); setAgesF(aF);
             setProfilAll(pAll); setProfil10(p10); setProfil100(p100); setProfil1000(p1000);
             setProfilAllH(pAllH); setProfilAllF(pAllF);
             setProfil100H(p100H); setProfil100F(p100F);
+            setEvolutionAge(evoAge);
             setLoading(false);
         });
     }, [mois]);
@@ -204,6 +207,25 @@ export default function Age() {
                     </table>
                 </div>
             </div>
+
+            {/* Evolution age moyen dans le temps */}
+            {evolutionAge.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mt-6">
+                    <h3 className="font-semibold text-text mb-1">Évolution de l'âge moyen dans le temps</h3>
+                    <p className="text-xs text-text-secondary mb-4">Age moyen de tous les joueurs classés, mois par mois</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                        <LineChart data={evolutionAge}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} domain={['auto', 'auto']} unit=" ans" axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip />} formatter={(v) => `${v} ans`} />
+                            <Legend />
+                            <Line type="monotone" dataKey="avg_age" name="Tous" stroke="#8b5cf6" strokeWidth={2.5} dot={false} connectNulls />
+                            <Line type="monotone" dataKey="avg_age_h" name="Hommes" stroke={HOMME} strokeWidth={2} dot={false} strokeDasharray="4 2" connectNulls />
+                            <Line type="monotone" dataKey="avg_age_f" name="Femmes" stroke={FEMME} strokeWidth={2} dot={false} strokeDasharray="4 2" connectNulls />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
         </div>
     );
 }
