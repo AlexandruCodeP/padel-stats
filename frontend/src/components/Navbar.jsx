@@ -348,16 +348,6 @@ export default function Navbar() {
                         {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         <span style={{ fontSize: '9px' }} className="font-medium">Theme</span>
                     </button>
-                    {user && (
-                        <button
-                            onClick={handleLogout}
-                            className="flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl transition-all duration-200 flex-1"
-                            style={{ color: INACTIVE }}
-                        >
-                            <LogOut className="w-5 h-5" />
-                            <span style={{ fontSize: '9px' }} className="font-medium">Quitter</span>
-                        </button>
-                    )}
                 </div>
             </nav>
         </>
