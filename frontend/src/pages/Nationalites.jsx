@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line } from 'recharts';
-import { getMois, getAnalyticsNationalites, getAnalyticsProfil, getAnalyticsEvolutionNationalites } from '../api';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { getMois, getAnalyticsNationalites, getAnalyticsProfil } from '../api';
 import { Globe, Flag, Users } from 'lucide-react';
 
 const COLORS = ['#0ea5e9', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
@@ -28,7 +28,6 @@ export default function Nationalites() {
     const [profilTop100, setProfilTop100] = useState(null);
     const [profilTop1000, setProfilTop1000] = useState(null);
     const [profilAll, setProfilAll] = useState(null);
-    const [evolutionNat, setEvolutionNat] = useState({ nationalites: [], data: [] });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
@@ -44,11 +43,9 @@ export default function Nationalites() {
             getAnalyticsProfil(mois, 100, g),
             getAnalyticsProfil(mois, 1000, g),
             getAnalyticsProfil(mois, 50000, g),
-            getAnalyticsEvolutionNationalites(g, 6),
-        ]).then(([n100, n1000, nAll, p100, p1000, pAll, evoNat]) => {
+        ]).then(([n100, n1000, nAll, p100, p1000, pAll]) => {
             setNatTop100(n100); setNatTop1000(n1000); setNatAll(nAll);
             setProfilTop100(p100); setProfilTop1000(p1000); setProfilAll(pAll);
-            setEvolutionNat(evoNat);
             setLoading(false);
         });
     }, [mois, genre]);
@@ -212,24 +209,6 @@ export default function Nationalites() {
                 </div>
             </div>
 
-            {/* Evolution des nationalités dans le temps */}
-            {evolutionNat.data.length > 1 && (
-                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mt-6">
-                    <h3 className="font-semibold text-text mb-1">Évolution des nationalités dans le temps</h3>
-                    <p className="text-xs text-text-secondary mb-4">Nombre de joueurs par nationalité (top 6) mois par mois</p>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={evolutionNat.data}>
-                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomTooltip />} formatter={(v) => v.toLocaleString('fr-FR')} />
-                            <Legend />
-                            {evolutionNat.nationalites.map((nat, i) => (
-                                <Line key={nat} type="monotone" dataKey={nat} name={nat} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} connectNulls />
-                            ))}
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            )}
         </div>
     );
 }

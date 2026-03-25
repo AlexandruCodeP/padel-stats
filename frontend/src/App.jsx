@@ -9,6 +9,7 @@ import Analytics from './pages/Analytics';
 import Comparateur from './pages/Comparateur';
 import ComparaisonMois from './pages/ComparaisonMois';
 import Welcome from './pages/Welcome';
+import Tendances from './pages/Tendances';
 import Evolution from './pages/Evolution';
 import Nationalites from './pages/Nationalites';
 import Age from './pages/Age';
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/analytics" element={<AppLayout><Analytics /></AppLayout>} />
         <Route path="/comparateur" element={<AppLayout><Comparateur /></AppLayout>} />
         <Route path="/comparaison-mois" element={<AppLayout><ComparaisonMois /></AppLayout>} />
+        <Route path="/tendances" element={<AppLayout><Tendances /></AppLayout>} />
 
         {/* Pages Statistiques */}
         <Route path="/evolution" element={<AppLayout><Evolution /></AppLayout>} />
