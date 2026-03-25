@@ -1,24 +1,12 @@
 const BASE = import.meta.env.VITE_API_BASE || '/api';
 
-function getToken() {
-  return localStorage.getItem('token');
-}
-
 async function fetchJSON(url, options = {}) {
-  const token = getToken();
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
   const res = await fetch(`${BASE}${url}`, { ...options, headers });
-
-  if (res.status === 401) {
-    localStorage.removeItem('token');
-    window.location.href = '/login';
-    throw new Error('Session expirée');
-  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -27,22 +15,6 @@ async function fetchJSON(url, options = {}) {
 
   return res.json();
 }
-
-// ── Auth ──────────────────────────────────────────────────────────────────────
-
-export const authRegister = (name, email, password) =>
-  fetchJSON('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ name, email, password }),
-  });
-
-export const authLogin = (email, password) =>
-  fetchJSON('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-
-export const getMe = () => fetchJSON('/auth/me');
 
 // ── Base ──────────────────────────────────────────────────────────────────────
 
@@ -75,16 +47,18 @@ export const getDashboardOverview = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/dashboard/overview?${params}`);
 };
-export const getDashboardProgressions = (mois, genre, limit = 10) => {
+export const getDashboardProgressions = (mois, genre, limit = 10, rang_max = null) => {
     const params = new URLSearchParams({ limit });
     if (mois) params.set('mois', mois);
     if (genre) params.set('genre', genre);
+    if (rang_max) params.set('rang_max', rang_max);
     return fetchJSON(`/dashboard/progressions?${params}`);
 };
-export const getDashboardChutes = (mois, genre, limit = 10) => {
+export const getDashboardChutes = (mois, genre, limit = 10, rang_max = null) => {
     const params = new URLSearchParams({ limit });
     if (mois) params.set('mois', mois);
     if (genre) params.set('genre', genre);
+    if (rang_max) params.set('rang_max', rang_max);
     return fetchJSON(`/dashboard/chutes?${params}`);
 };
 export const getDashboardEvolution = (genre) => {
