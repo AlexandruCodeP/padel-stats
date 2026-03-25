@@ -892,5 +892,51 @@ def analytics_region_tableau(conn, mois=None, genre=None):
     return result
 
 
+def analytics_evolution_assimiles(conn, genre=None):
+    """Evolution du nombre d'assimilés dans le temps."""
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT c.mois,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN c.est_assimile=1 THEN 1 ELSE 0 END) as assimiles
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE 1=1 {gf}
+            GROUP BY c.mois ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+    return [
+        {
+            "mois": r["mois"],
+            "total": r["total"],
+            "assimiles": r["assimiles"],
+            "pct_assimiles": round((r["assimiles"] / r["total"] * 100) if r["total"] > 0 else 0, 2),
+        }
+        for r in rows
+    ]
+
+
+def analytics_evolution_age_moyen(conn, genre=None):
+    """Evolution de l'âge moyen dans le temps."""
+    rows = conn.execute(
+        """SELECT c.mois,
+                   AVG(c.age) as avg_age,
+                   AVG(CASE WHEN c.genre='H' THEN c.age END) as avg_age_h,
+                   AVG(CASE WHEN c.genre='F' THEN c.age END) as avg_age_f
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.age IS NOT NULL
+            GROUP BY c.mois ORDER BY c.mois ASC""",
+    ).fetchall()
+    return [
+        {
+            "mois": r["mois"],
+            "avg_age": round(r["avg_age"] or 0, 1),
+            "avg_age_h": round(r["avg_age_h"], 1) if r["avg_age_h"] else None,
+            "avg_age_f": round(r["avg_age_f"], 1) if r["avg_age_f"] else None,
+        }
+        for r in rows
+    ]
+
+
 if __name__ == "__main__":
     init_db()

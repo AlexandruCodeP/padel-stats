@@ -1,19 +1,11 @@
 import { useState } from 'react';
-import { Search, GitCompare, Trophy, TrendingUp, MapPin, Calendar, Zap, ChevronRight, Activity } from 'lucide-react';
+import { Search, GitCompare, Trophy, TrendingUp, MapPin, Calendar, Zap, ChevronRight } from 'lucide-react';
 import { rechercher, getComparaison } from '../api';
-import {
-    RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-    ResponsiveContainer, Tooltip,
-} from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const HOMME = '#38BDF8';
 const FEMME = '#FB7185';
 const VOLT = '#CCFF00';
-
-const parseEvol = (e) => {
-    if (!e || e === '=') return 0;
-    return parseInt(e.replace('+', '')) || 0;
-};
 
 const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
@@ -53,40 +45,21 @@ export default function Comparateur() {
         setLoading(false);
     };
 
-    /* ── Radar data ────────────────────────────────────────────────── */
-    const getRadarData = () => {
+    /* ── Ranking evolution chart data ──────────────────────────────── */
+    const getRangEvoData = () => {
         if (!result?.joueur1 || !result?.joueur2) return [];
-        const h1 = result.joueur1.historique[0] || {};
-        const h2 = result.joueur2.historique[0] || {};
-
-        // Points — normalisés entre les deux joueurs
-        const maxPts = Math.max(h1.points || 0, h2.points || 0, 1);
-        const pts1 = Math.round(((h1.points || 0) / maxPts) * 100);
-        const pts2 = Math.round(((h2.points || 0) / maxPts) * 100);
-
-        // Classement — rang inversé (rang 1 = 100, rang élevé = score bas)
-        const maxRang = Math.max(h1.rang || 1, h2.rang || 1, 1);
-        const rk1 = Math.round((1 - ((h1.rang || maxRang) - 1) / Math.max(maxRang - 1, 1)) * 100);
-        const rk2 = Math.round((1 - ((h2.rang || maxRang) - 1) / Math.max(maxRang - 1, 1)) * 100);
-
-        // Activité — nb de tournois normalisé
-        const maxTrn = Math.max(h1.nb_tournois || 0, h2.nb_tournois || 0, 1);
-        const act1 = Math.round(((h1.nb_tournois || 0) / maxTrn) * 100);
-        const act2 = Math.round(((h2.nb_tournois || 0) / maxTrn) * 100);
-
-        // Progression — basée sur l'évolution récente du classement
-        const ev1 = parseEvol(h1.evolution);
-        const ev2 = parseEvol(h2.evolution);
-        const eMax = Math.max(Math.abs(ev1), Math.abs(ev2), 1);
-        const prog1 = Math.min(100, Math.max(0, Math.round(50 + (ev1 / eMax) * 50)));
-        const prog2 = Math.min(100, Math.max(0, Math.round(50 + (ev2 / eMax) * 50)));
-
-        return [
-            { axis: 'Points',      j1: pts1, j2: pts2 },
-            { axis: 'Classement',  j1: rk1,  j2: rk2 },
-            { axis: 'Activité',    j1: act1, j2: act2 },
-            { axis: 'Progression', j1: prog1, j2: prog2 },
-        ];
+        const h1 = [...result.joueur1.historique].reverse();
+        const h2 = [...result.joueur2.historique].reverse();
+        const moisSet = [...new Set([...h1.map(h => h.mois), ...h2.map(h => h.mois)])].sort();
+        const map1 = Object.fromEntries(h1.map(h => [h.mois, h]));
+        const map2 = Object.fromEntries(h2.map(h => [h.mois, h]));
+        return moisSet.map(m => ({
+            mois: m,
+            rang1: map1[m]?.rang ?? null,
+            rang2: map2[m]?.rang ?? null,
+            best1: map1[m]?.meilleur_classement ?? null,
+            best2: map2[m]?.meilleur_classement ?? null,
+        }));
     };
 
     /* ── Match Simulation ──────────────────────────────────────────── */
@@ -134,7 +107,7 @@ export default function Comparateur() {
         );
     };
 
-    const radarData = getRadarData();
+    const rangEvoData = getRangEvoData();
     const sim = showSim ? getSimulation() : null;
     const c1 = result?.joueur1?.joueur?.genre === 'F' ? FEMME : HOMME;
     const c2 = result?.joueur2?.joueur?.genre === 'F' ? FEMME : HOMME;
@@ -258,36 +231,26 @@ export default function Comparateur() {
                         </div>
                     </div>
 
-                    {/* Radar chart */}
-                    {radarData.length > 0 && (
+                    {/* Ranking evolution chart */}
+                    {rangEvoData.length > 1 && (
                         <div className="bg-card rounded-2xl border border-border shadow-sm p-5 mb-4">
                             <h3 className="font-semibold text-text mb-1 flex items-center gap-2">
-                                <Activity className="w-4 h-4 text-primary" />
-                                Profil comparatif
+                                <TrendingUp className="w-4 h-4 text-primary" />
+                                Évolution du classement
                             </h3>
-                            <p className="text-xs text-text-secondary mb-4">Scores normalisés (0-100) basés sur les données FFT : points, rang, tournois joués et évolution récente</p>
+                            <p className="text-xs text-text-secondary mb-4">Rang des deux joueurs dans le temps — plus la courbe est basse, meilleur est le classement</p>
                             <ResponsiveContainer width="100%" height={300}>
-                                <RadarChart data={radarData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
-                                    <PolarGrid stroke="#e2e8f0" strokeDasharray="0" />
-                                    <PolarAngleAxis dataKey="axis" tick={{ fontSize: 12, fill: '#64748b', fontWeight: 500 }} />
-                                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} tickCount={4} />
-                                    <Radar name={`${result.joueur1.joueur.prenom} ${result.joueur1.joueur.nom}`}
-                                        dataKey="j1" stroke={c1} fill={c1} fillOpacity={0.2} strokeWidth={2.5} />
-                                    <Radar name={`${result.joueur2.joueur.prenom} ${result.joueur2.joueur.nom}`}
-                                        dataKey="j2" stroke={c2} fill={c2} fillOpacity={0.2} strokeWidth={2.5} />
+                                <LineChart data={rangEvoData}>
+                                    <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <YAxis reversed tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                                     <Tooltip content={<CustomTooltip />} />
-                                </RadarChart>
+                                    <Legend />
+                                    <Line type="monotone" dataKey="rang1" name={`${result.joueur1.joueur.prenom} ${result.joueur1.joueur.nom}`} stroke={c1} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="rang2" name={`${result.joueur2.joueur.prenom} ${result.joueur2.joueur.nom}`} stroke={c2} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="best1" name={`Meilleur rang ${result.joueur1.joueur.prenom}`} stroke={c1} strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
+                                    <Line type="monotone" dataKey="best2" name={`Meilleur rang ${result.joueur2.joueur.prenom}`} stroke={c2} strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
+                                </LineChart>
                             </ResponsiveContainer>
-                            <div className="flex items-center justify-center gap-6 mt-2">
-                                <div className="flex items-center gap-2 text-xs text-text-secondary">
-                                    <div className="w-3 h-3 rounded-full" style={{ background: c1 }} />
-                                    {result.joueur1.joueur.prenom} {result.joueur1.joueur.nom}
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-text-secondary">
-                                    <div className="w-3 h-3 rounded-full" style={{ background: c2 }} />
-                                    {result.joueur2.joueur.prenom} {result.joueur2.joueur.nom}
-                                </div>
-                            </div>
                         </div>
                     )}
 

@@ -152,3 +152,9 @@ export const getAnalyticsRegionTableau = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/analytics/region-tableau?${params}`);
 };
+export const getAnalyticsEvolutionAssimiles = (genre) => {
+    const params = new URLSearchParams();
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-assimiles?${params}`);
+};
+export const getAnalyticsEvolutionAgeMoyen = () => fetchJSON('/analytics/evolution-age-moyen');
