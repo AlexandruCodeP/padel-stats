@@ -39,10 +39,10 @@ export default function Nationalites() {
         Promise.all([
             getAnalyticsNationalites(mois, 100, g),
             getAnalyticsNationalites(mois, 1000, g),
-            getAnalyticsNationalites(mois, 50000, g),
+            getAnalyticsNationalites(mois, 999999, g),
             getAnalyticsProfil(mois, 100, g),
             getAnalyticsProfil(mois, 1000, g),
-            getAnalyticsProfil(mois, 50000, g),
+            getAnalyticsProfil(mois, 999999, g),
         ]).then(([n100, n1000, nAll, p100, p1000, pAll]) => {
             setNatTop100(n100); setNatTop1000(n1000); setNatAll(nAll);
             setProfilTop100(p100); setProfilTop1000(p1000); setProfilAll(pAll);
@@ -67,6 +67,7 @@ export default function Nationalites() {
 
     // Pick data for the selected top filter
     const currentData = top <= 100 ? natTop100 : top <= 1000 ? natTop1000 : natAll;
+    const currentProfil = top <= 100 ? profilTop100 : top <= 1000 ? profilTop1000 : profilAll;
     const total = currentData.reduce((s, n) => s + n.count, 0);
 
     // French % in each level
@@ -98,7 +99,7 @@ export default function Nationalites() {
                     </div>
                     <select value={top} onChange={e => setTop(Number(e.target.value))}
                         className="px-3 py-2 rounded-xl border border-border text-sm bg-card text-text focus:outline-none focus:ring-2 focus:ring-primary/20">
-                        {[100, 1000, 50000].map(n => <option key={n} value={n}>{n >= 50000 ? 'Tous' : `Top ${n.toLocaleString('fr-FR')}`}</option>)}
+                        {[100, 1000, 999999].map(n => <option key={n} value={n}>{n >= 999999 ? 'Tous' : `Top ${n.toLocaleString('fr-FR')}`}</option>)}
                     </select>
                 </div>
             </div>
@@ -107,30 +108,30 @@ export default function Nationalites() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
                     <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Flag className="w-3.5 h-3.5" /> Nat. dominante</div>
-                    <div className="text-xl font-bold text-text font-data">{profilTop100?.nationalite_principale || 'FRA'}</div>
-                    <div className="text-xs text-text-secondary">Top 100</div>
+                    <div className="text-xl font-bold text-text font-data">{currentProfil?.nationalite_principale || 'FRA'}</div>
+                    <div className="text-xs text-text-secondary">{top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</div>
                 </div>
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1">% Francais Top 100</div>
-                    <div className="text-xl font-bold text-primary font-data">{frPct(natTop100)}%</div>
-                    <div className="text-xs text-text-secondary">{natTop100.find(n => n.nationalite === 'FRA')?.count || 0} joueurs</div>
+                    <div className="text-xs text-text-secondary mb-1">% Francais</div>
+                    <div className="text-xl font-bold text-primary font-data">{frPct(currentData)}%</div>
+                    <div className="text-xs text-text-secondary">{(currentData.find(n => n.nationalite === 'FRA')?.count || 0).toLocaleString('fr-FR')} joueurs</div>
                 </div>
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1">% Francais Top 1 000</div>
-                    <div className="text-xl font-bold text-primary font-data">{frPct(natTop1000)}%</div>
-                    <div className="text-xs text-text-secondary">{natTop1000.find(n => n.nationalite === 'FRA')?.count || 0} joueurs</div>
+                    <div className="text-xs text-text-secondary mb-1">Total joueurs</div>
+                    <div className="text-xl font-bold text-text font-data">{total.toLocaleString('fr-FR')}</div>
+                    <div className="text-xs text-text-secondary">{top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</div>
                 </div>
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
                     <div className="text-xs text-text-secondary mb-1">Nationalites representees</div>
-                    <div className="text-xl font-bold text-text font-data">{natAll.length}</div>
-                    <div className="text-xs text-text-secondary">tous niveaux</div>
+                    <div className="text-xl font-bold text-text font-data">{currentData.length}</div>
+                    <div className="text-xs text-text-secondary">{top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</div>
                 </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {/* Camembert */}
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-                    <h3 className="font-semibold text-text mb-4">Repartition — {top >= 50000 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</h3>
+                    <h3 className="font-semibold text-text mb-4">Repartition — {top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</h3>
                     {currentData.length > 0 ? (
                         <ResponsiveContainer width="100%" height={320}>
                             <PieChart>

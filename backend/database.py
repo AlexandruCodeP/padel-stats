@@ -453,10 +453,10 @@ def analytics_difficulte_progression(conn, mois=None, genre=None):
         return []
     gf = "AND c.genre=?" if genre else ""
     gp = [genre] if genre else []
-    tranches = [(1, 10), (11, 50), (51, 100), (101, 500), (501, 1000), (1001, 5000), (5001, 99999)]
+    tranches = [(1, 10), (11, 50), (51, 100), (101, 500), (501, 1000), (1001, 5000), (5001, 50000), (50001, 999999)]
     result = []
     for lo, hi in tranches:
-        label = f"Top {lo}-{hi}" if hi < 99999 else f"Top {lo}+"
+        label = f"Top {lo}-{hi}" if hi < 999999 else f"Top {lo}+"
         row = conn.execute(
             f"""SELECT COUNT(*) as total,
                        SUM(CASE WHEN c.evolution IS NOT NULL AND c.evolution != '='
@@ -539,10 +539,10 @@ def analytics_age_par_niveau(conn, mois=None, genre=None):
         return []
     gf = "AND c.genre=?" if genre else ""
     gp = [genre] if genre else []
-    tranches = [(1, 10), (11, 50), (51, 100), (101, 500), (501, 1000), (1001, 5000), (5001, 99999)]
+    tranches = [(1, 10), (11, 50), (51, 100), (101, 500), (501, 1000), (1001, 5000), (5001, 50000), (50001, 999999)]
     result = []
     for lo, hi in tranches:
-        label = f"Top {lo}-{hi}" if hi < 99999 else f"Top {lo}+"
+        label = f"Top {lo}-{hi}" if hi < 999999 else f"Top {lo}+"
         row = conn.execute(
             f"""SELECT AVG(c.age) as avg_age, MIN(c.age) as min_age, MAX(c.age) as max_age
                 FROM classements c JOIN joueurs j ON j.id=c.joueur_id
@@ -815,7 +815,7 @@ def analytics_rang_points_curve(conn, mois=None, genre=None):
 
     bands = [
         (1, 10), (11, 50), (51, 100), (101, 250), (251, 500),
-        (501, 1000), (1001, 2500), (2501, 5000), (5001, 10000), (10001, 99999),
+        (501, 1000), (1001, 2500), (2501, 5000), (5001, 10000), (10001, 50000), (50001, 999999),
     ]
     result = []
     for lo, hi in bands:
@@ -826,7 +826,7 @@ def analytics_rang_points_curve(conn, mois=None, genre=None):
             [mois, lo, hi] + gp,
         ).fetchone()
         if row and row["cnt"] > 0:
-            label = f"Top {lo}" if lo == 1 else (f"{lo}+" if hi >= 99999 else f"{lo}-{hi}")
+            label = f"Top {lo}" if lo == 1 else (f"{lo}+" if hi >= 999999 else f"{lo}-{hi}")
             result.append({
                 "tranche": label,
                 "rang_centre": lo if lo == 1 else min((lo + hi) // 2, 30000),

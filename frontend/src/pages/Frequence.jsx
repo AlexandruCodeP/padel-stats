@@ -39,7 +39,7 @@ export default function Frequence() {
             getAnalyticsFrequence(mois),
             getAnalyticsFrequence(mois, 'H'),
             getAnalyticsFrequence(mois, 'F'),
-            getAnalyticsProfil(mois, 50000),
+            getAnalyticsProfil(mois, 999999),
             getAnalyticsProfil(mois, 100),
             getAnalyticsProfil(mois, 1000),
         ]).then(([f, fH, fF, pAll, p100, p1000]) => {
