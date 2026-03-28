@@ -33,6 +33,8 @@ from database import (
     analytics_region_tableau,
     analytics_evolution_assimiles, analytics_evolution_age_moyen,
     analytics_evolution_ligues,
+    analytics_evolution_top100_par_ligue, analytics_evolution_moins18_par_ligue,
+    analytics_evolution_assimiles_par_ligue, analytics_evolution_etrangers_top100,
 )
 
 logger = logging.getLogger("padel.scheduler")
@@ -362,6 +364,30 @@ def ana_evolution_age_moyen():
 def ana_evolution_ligues(genre: Optional[str] = None):
     with get_db() as conn:
         return analytics_evolution_ligues(conn, genre)
+
+
+@app.get("/analytics/evolution-top100-par-ligue")
+def ana_evolution_top100_par_ligue(genre: Optional[str] = None, top_n: int = 100):
+    with get_db() as conn:
+        return analytics_evolution_top100_par_ligue(conn, genre, top_n)
+
+
+@app.get("/analytics/evolution-moins18-par-ligue")
+def ana_evolution_moins18_par_ligue(genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_evolution_moins18_par_ligue(conn, genre)
+
+
+@app.get("/analytics/evolution-assimiles-par-ligue")
+def ana_evolution_assimiles_par_ligue(genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_evolution_assimiles_par_ligue(conn, genre)
+
+
+@app.get("/analytics/evolution-etrangers-top100")
+def ana_evolution_etrangers_top100():
+    with get_db() as conn:
+        return analytics_evolution_etrangers_top100(conn)
 
 
 # ── Serve frontend static files in production ────────────────────────────────

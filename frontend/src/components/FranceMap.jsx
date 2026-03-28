@@ -51,10 +51,14 @@ export default function FranceMap({ ligues = [], onRegionClick }) {
 
   const getFill = (nom, isHov) => {
     const d = byNom[nom];
-    if (!d) return isHov ? 'rgba(0,71,171,0.18)' : 'rgba(0,71,171,0.07)';
+    if (!d) return isHov ? '#c7d9ec' : '#dde8f4';
     const t = d.total / maxTotal;
-    const base = 0.1 + t * 0.82;
-    return `rgba(0,71,171,${isHov ? Math.min(base + 0.12, 1) : base})`;
+    // Interpolate from light blue (low count) to dark blue (high count)
+    const r = Math.round(221 - t * 207);
+    const g = Math.round(232 - t * 161);
+    const b = Math.round(244 - t * 73);
+    if (isHov) return `rgb(${Math.max(r - 20, 0)},${Math.max(g - 20, 0)},${Math.max(b - 20, 0)})`;
+    return `rgb(${r},${g},${b})`;
   };
 
   const hoveredData = hovered ? byNom[hovered] : null;
@@ -149,7 +153,7 @@ export default function FranceMap({ ligues = [], onRegionClick }) {
       <div className="flex items-center gap-2 mt-3 px-1">
         <span className="text-xs text-text-secondary">Moins de joueurs</span>
         <div className="flex-1 h-2 rounded-full" style={{
-          background: 'linear-gradient(to right, rgba(0,71,171,0.07), rgba(0,71,171,0.92))',
+          background: 'linear-gradient(to right, rgb(221,232,244), rgb(14,71,171))',
         }} />
         <span className="text-xs text-text-secondary">Plus de joueurs</span>
       </div>

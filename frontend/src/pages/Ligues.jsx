@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, User, MapPin, TrendingUp } from 'lucide-react';
-import { getLigues, getStats, getMois, getAnalyticsRegionTableau, getAnalyticsEvolutionLigues } from '../api';
+import { getLigues, getStats, getMois, getAnalyticsRegionTableau, getAnalyticsEvolutionLigues, getAnalyticsEvolutionTop100ParLigue, getAnalyticsEvolutionMoins18ParLigue, getAnalyticsEvolutionAssimilesParLigue } from '../api';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import KPICard from '../components/KPICard';
 import FranceMap from '../components/FranceMap';
@@ -16,19 +16,35 @@ export default function LiguesPage() {
     const [tableau, setTableau] = useState([]);
     const [tableauLoading, setTableauLoading] = useState(false);
     const [evoLigues, setEvoLigues] = useState({ ligues: [], data: [] });
+    const [evoTop100, setEvoTop100] = useState({ ligues: [], data: [] });
+    const [evoMoins18, setEvoMoins18] = useState({ ligues: [], data: [] });
+    const [evoAssimiles, setEvoAssimiles] = useState({ ligues: [], data: [] });
     const [visibleLigues, setVisibleLigues] = useState(new Set());
+    const [visibleTop100, setVisibleTop100] = useState(new Set());
+    const [visibleMoins18, setVisibleMoins18] = useState(new Set());
+    const [visibleAssimiles, setVisibleAssimiles] = useState(new Set());
 
     const COLORS = ['#0ea5e9', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#e11d48', '#a855f7'];
     const TOP_N = 8;
 
     useEffect(() => {
-        Promise.all([getLigues(), getStats(), getMois(), getAnalyticsEvolutionLigues()]).then(([l, s, m, evo]) => {
+        Promise.all([
+            getLigues(), getStats(), getMois(), getAnalyticsEvolutionLigues(),
+            getAnalyticsEvolutionTop100ParLigue(), getAnalyticsEvolutionMoins18ParLigue(),
+            getAnalyticsEvolutionAssimilesParLigue(),
+        ]).then(([l, s, m, evo, evoT100, evoM18, evoAssi]) => {
             setLigues(l);
             setStats(s);
             setMoisList(m);
             if (m.length) setMois(m[0].mois);
             setEvoLigues(evo);
             setVisibleLigues(new Set(evo.ligues.slice(0, TOP_N)));
+            setEvoTop100(evoT100);
+            setVisibleTop100(new Set(evoT100.ligues.slice(0, TOP_N)));
+            setEvoMoins18(evoM18);
+            setVisibleMoins18(new Set(evoM18.ligues.slice(0, TOP_N)));
+            setEvoAssimiles(evoAssi);
+            setVisibleAssimiles(new Set(evoAssi.ligues.slice(0, TOP_N)));
             setLoading(false);
         });
     }, []);
@@ -208,6 +224,129 @@ export default function LiguesPage() {
                                 }}
                             />
                             {evoLigues.ligues.map((ligue, i) => visibleLigues.has(ligue) && (
+                                <Line key={ligue} type="monotone" dataKey={ligue} name={ligue} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} connectNulls />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Évolution du Top 100 par ligue */}
+            {evoTop100.data.length > 1 && (
+                <div className="bg-card rounded-xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-yellow-500" /> Évolution du nombre de Top 100 par ligue
+                    </h3>
+                    <p className="text-text-secondary text-xs mb-3">Cliquez sur une ligue pour l'afficher ou la masquer</p>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        <button onClick={() => setVisibleTop100(new Set(evoTop100.ligues.slice(0, TOP_N)))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 transition-colors">Top {TOP_N}</button>
+                        <button onClick={() => setVisibleTop100(prev => prev.size === evoTop100.ligues.length ? new Set(evoTop100.ligues.slice(0, TOP_N)) : new Set(evoTop100.ligues))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 transition-colors">
+                            {visibleTop100.size === evoTop100.ligues.length ? 'Réduire' : 'Toutes'}</button>
+                        <div className="w-px bg-border mx-1" />
+                        {evoTop100.ligues.map((ligue, i) => {
+                            const color = COLORS[i % COLORS.length]; const active = visibleTop100.has(ligue);
+                            return (<button key={ligue} onClick={() => setVisibleTop100(prev => { const next = new Set(prev); next.has(ligue) ? next.delete(ligue) : next.add(ligue); return next; })}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 border ${active ? 'text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-text-secondary/50 border-border'}`}
+                                style={active ? { backgroundColor: color, borderColor: color } : {}}>{ligue}</button>);
+                        })}
+                    </div>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={evoTop100.data}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <Tooltip content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
+                                return (<div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                    <p className="font-semibold mb-1">{formatMoisLabel(label)}</p>
+                                    {sorted.map((p, i) => (<p key={i} style={{ color: p.color }}>{p.name} : {p.value}</p>))}
+                                </div>);
+                            }} />
+                            {evoTop100.ligues.map((ligue, i) => visibleTop100.has(ligue) && (
+                                <Line key={ligue} type="monotone" dataKey={ligue} name={ligue} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} connectNulls />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Évolution des moins de 18 ans par ligue */}
+            {evoMoins18.data.length > 1 && (
+                <div className="bg-card rounded-xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-green-500" /> Évolution des moins de 18 ans par ligue
+                    </h3>
+                    <p className="text-text-secondary text-xs mb-3">Cliquez sur une ligue pour l'afficher ou la masquer</p>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        <button onClick={() => setVisibleMoins18(new Set(evoMoins18.ligues.slice(0, TOP_N)))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 transition-colors">Top {TOP_N}</button>
+                        <button onClick={() => setVisibleMoins18(prev => prev.size === evoMoins18.ligues.length ? new Set(evoMoins18.ligues.slice(0, TOP_N)) : new Set(evoMoins18.ligues))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 transition-colors">
+                            {visibleMoins18.size === evoMoins18.ligues.length ? 'Réduire' : 'Toutes'}</button>
+                        <div className="w-px bg-border mx-1" />
+                        {evoMoins18.ligues.map((ligue, i) => {
+                            const color = COLORS[i % COLORS.length]; const active = visibleMoins18.has(ligue);
+                            return (<button key={ligue} onClick={() => setVisibleMoins18(prev => { const next = new Set(prev); next.has(ligue) ? next.delete(ligue) : next.add(ligue); return next; })}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 border ${active ? 'text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-text-secondary/50 border-border'}`}
+                                style={active ? { backgroundColor: color, borderColor: color } : {}}>{ligue}</button>);
+                        })}
+                    </div>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={evoMoins18.data}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <Tooltip content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
+                                return (<div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                    <p className="font-semibold mb-1">{formatMoisLabel(label)}</p>
+                                    {sorted.map((p, i) => (<p key={i} style={{ color: p.color }}>{p.name} : {p.value}</p>))}
+                                </div>);
+                            }} />
+                            {evoMoins18.ligues.map((ligue, i) => visibleMoins18.has(ligue) && (
+                                <Line key={ligue} type="monotone" dataKey={ligue} name={ligue} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} connectNulls />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Évolution des joueurs assimilés par ligue */}
+            {evoAssimiles.data.length > 1 && (
+                <div className="bg-card rounded-xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-purple-500" /> Évolution des joueurs assimilés par ligue
+                    </h3>
+                    <p className="text-text-secondary text-xs mb-3">Cliquez sur une ligue pour l'afficher ou la masquer</p>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        <button onClick={() => setVisibleAssimiles(new Set(evoAssimiles.ligues.slice(0, TOP_N)))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 transition-colors">Top {TOP_N}</button>
+                        <button onClick={() => setVisibleAssimiles(prev => prev.size === evoAssimiles.ligues.length ? new Set(evoAssimiles.ligues.slice(0, TOP_N)) : new Set(evoAssimiles.ligues))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 transition-colors">
+                            {visibleAssimiles.size === evoAssimiles.ligues.length ? 'Réduire' : 'Toutes'}</button>
+                        <div className="w-px bg-border mx-1" />
+                        {evoAssimiles.ligues.map((ligue, i) => {
+                            const color = COLORS[i % COLORS.length]; const active = visibleAssimiles.has(ligue);
+                            return (<button key={ligue} onClick={() => setVisibleAssimiles(prev => { const next = new Set(prev); next.has(ligue) ? next.delete(ligue) : next.add(ligue); return next; })}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 border ${active ? 'text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-text-secondary/50 border-border'}`}
+                                style={active ? { backgroundColor: color, borderColor: color } : {}}>{ligue}</button>);
+                        })}
+                    </div>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={evoAssimiles.data}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <Tooltip content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
+                                return (<div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                    <p className="font-semibold mb-1">{formatMoisLabel(label)}</p>
+                                    {sorted.map((p, i) => (<p key={i} style={{ color: p.color }}>{p.name} : {p.value}</p>))}
+                                </div>);
+                            }} />
+                            {evoAssimiles.ligues.map((ligue, i) => visibleAssimiles.has(ligue) && (
                                 <Line key={ligue} type="monotone" dataKey={ligue} name={ligue} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} connectNulls />
                             ))}
                         </LineChart>

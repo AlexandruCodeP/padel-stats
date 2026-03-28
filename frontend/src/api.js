@@ -163,3 +163,19 @@ export const getAnalyticsEvolutionLigues = (genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/analytics/evolution-ligues?${params}`);
 };
+export const getAnalyticsEvolutionTop100ParLigue = (genre, top_n = 100) => {
+    const params = new URLSearchParams({ top_n });
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-top100-par-ligue?${params}`);
+};
+export const getAnalyticsEvolutionMoins18ParLigue = (genre) => {
+    const params = new URLSearchParams();
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-moins18-par-ligue?${params}`);
+};
+export const getAnalyticsEvolutionAssimilesParLigue = (genre) => {
+    const params = new URLSearchParams();
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-assimiles-par-ligue?${params}`);
+};
+export const getAnalyticsEvolutionEtrangersTop100 = () => fetchJSON('/analytics/evolution-etrangers-top100');

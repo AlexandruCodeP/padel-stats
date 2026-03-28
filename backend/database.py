@@ -976,5 +976,148 @@ def analytics_evolution_age_moyen(conn, genre=None):
     ]
 
 
+def analytics_evolution_top100_par_ligue(conn, genre=None, top_n=100):
+    """Evolution du nombre de joueurs Top N par ligue dans le temps."""
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT c.mois, c.ligue, COUNT(*) as total
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.rang <= ? AND c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            GROUP BY c.mois, c.ligue ORDER BY c.mois ASC""",
+        [top_n] + gp,
+    ).fetchall()
+
+    from collections import defaultdict
+    monthly = defaultdict(dict)
+    all_ligues = set()
+    for r in rows:
+        monthly[r["mois"]][r["ligue"]] = r["total"]
+        all_ligues.add(r["ligue"])
+
+    mois_sorted = sorted(monthly.keys())
+    if mois_sorted:
+        last = monthly[mois_sorted[-1]]
+        ligues_sorted = sorted(all_ligues, key=lambda l: last.get(l, 0), reverse=True)
+    else:
+        ligues_sorted = sorted(all_ligues)
+
+    result = []
+    for m in mois_sorted:
+        entry = {"mois": m}
+        for ligue in ligues_sorted:
+            entry[ligue] = monthly[m].get(ligue, 0)
+        result.append(entry)
+    return {"ligues": ligues_sorted, "data": result}
+
+
+def analytics_evolution_moins18_par_ligue(conn, genre=None):
+    """Evolution du nombre de joueurs de moins de 18 ans par ligue."""
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT c.mois, c.ligue, COUNT(*) as total
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.age < 18 AND c.age IS NOT NULL
+              AND c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            GROUP BY c.mois, c.ligue ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+
+    from collections import defaultdict
+    monthly = defaultdict(dict)
+    all_ligues = set()
+    for r in rows:
+        monthly[r["mois"]][r["ligue"]] = r["total"]
+        all_ligues.add(r["ligue"])
+
+    mois_sorted = sorted(monthly.keys())
+    if mois_sorted:
+        last = monthly[mois_sorted[-1]]
+        ligues_sorted = sorted(all_ligues, key=lambda l: last.get(l, 0), reverse=True)
+    else:
+        ligues_sorted = sorted(all_ligues)
+
+    result = []
+    for m in mois_sorted:
+        entry = {"mois": m}
+        for ligue in ligues_sorted:
+            entry[ligue] = monthly[m].get(ligue, 0)
+        result.append(entry)
+    return {"ligues": ligues_sorted, "data": result}
+
+
+def analytics_evolution_assimiles_par_ligue(conn, genre=None):
+    """Evolution du nombre de joueurs assimilés par ligue."""
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT c.mois, c.ligue, COUNT(*) as total
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.est_assimile = 1
+              AND c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            GROUP BY c.mois, c.ligue ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+
+    from collections import defaultdict
+    monthly = defaultdict(dict)
+    all_ligues = set()
+    for r in rows:
+        monthly[r["mois"]][r["ligue"]] = r["total"]
+        all_ligues.add(r["ligue"])
+
+    mois_sorted = sorted(monthly.keys())
+    if mois_sorted:
+        last = monthly[mois_sorted[-1]]
+        ligues_sorted = sorted(all_ligues, key=lambda l: last.get(l, 0), reverse=True)
+    else:
+        ligues_sorted = sorted(all_ligues)
+
+    result = []
+    for m in mois_sorted:
+        entry = {"mois": m}
+        for ligue in ligues_sorted:
+            entry[ligue] = monthly[m].get(ligue, 0)
+        result.append(entry)
+    return {"ligues": ligues_sorted, "data": result}
+
+
+def analytics_evolution_etrangers_top100(conn):
+    """Evolution du nombre d'étrangers dans le top 100 (H et F séparés)."""
+    rows = conn.execute(
+        """SELECT c.mois, c.genre,
+                  COUNT(*) as total,
+                  SUM(CASE WHEN j.nationalite != 'FRA' AND j.nationalite IS NOT NULL AND j.nationalite != '' THEN 1 ELSE 0 END) as etrangers
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+           WHERE c.rang <= 100
+           GROUP BY c.mois, c.genre ORDER BY c.mois ASC""",
+    ).fetchall()
+
+    from collections import defaultdict
+    monthly = defaultdict(lambda: {"total_h": 0, "total_f": 0, "etrangers_h": 0, "etrangers_f": 0})
+    for r in rows:
+        m = monthly[r["mois"]]
+        if r["genre"] == "H":
+            m["total_h"] = r["total"]
+            m["etrangers_h"] = r["etrangers"]
+        else:
+            m["total_f"] = r["total"]
+            m["etrangers_f"] = r["etrangers"]
+
+    return [
+        {
+            "mois": mois,
+            "etrangers_h": d["etrangers_h"],
+            "etrangers_f": d["etrangers_f"],
+            "total_h": d["total_h"],
+            "total_f": d["total_f"],
+            "pct_h": round(d["etrangers_h"] / d["total_h"] * 100, 1) if d["total_h"] else 0,
+            "pct_f": round(d["etrangers_f"] / d["total_f"] * 100, 1) if d["total_f"] else 0,
+        }
+        for mois, d in sorted(monthly.items())
+    ]
+
+
 if __name__ == "__main__":
     init_db()

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { getMois, getAnalyticsNationalites, getAnalyticsProfil } from '../api';
-import { Globe, Flag, Users } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis } from 'recharts';
+import { getMois, getAnalyticsNationalites, getAnalyticsProfil, getAnalyticsEvolutionEtrangersTop100 } from '../api';
+import { Globe, Flag, Users, TrendingUp } from 'lucide-react';
 
 const COLORS = ['#0ea5e9', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 
@@ -28,9 +28,13 @@ export default function Nationalites() {
     const [profilTop100, setProfilTop100] = useState(null);
     const [profilTop1000, setProfilTop1000] = useState(null);
     const [profilAll, setProfilAll] = useState(null);
+    const [evoEtrangers, setEvoEtrangers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
+    useEffect(() => {
+        getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); });
+        getAnalyticsEvolutionEtrangersTop100().then(setEvoEtrangers).catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (!mois) return;
@@ -161,6 +165,36 @@ export default function Nationalites() {
                     ) : <p className="text-text-secondary text-center py-8 text-sm">Pas de donnees</p>}
                 </div>
             </div>
+
+            {/* Évolution des étrangers dans le Top 100 */}
+            {evoEtrangers.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-1 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-primary" /> Évolution des étrangers dans le Top 100
+                    </h3>
+                    <p className="text-xs text-text-secondary mb-4">Nombre de joueurs non-français dans le Top 100 (Hommes et Femmes)</p>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={evoEtrangers}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <Tooltip content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                return (
+                                    <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                        <p className="font-semibold mb-1">{formatMoisLabel(label)}</p>
+                                        {payload.map((p, i) => (
+                                            <p key={i} style={{ color: p.color }}>{p.name} : {p.value}</p>
+                                        ))}
+                                    </div>
+                                );
+                            }} />
+                            <Legend />
+                            <Line type="monotone" dataKey="etrangers_h" name="Étrangers H" stroke="#38BDF8" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                            <Line type="monotone" dataKey="etrangers_f" name="Étrangères F" stroke="#FB7185" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
 
             {/* Comparaison par niveau */}
             <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mb-6">
