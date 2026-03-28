@@ -53,11 +53,27 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def strip_api_prefix(request: Request, call_next):
-    """Strip /api prefix so frontend calls like /api/stats hit /stats.
-    Mimics the Vite dev proxy rewrite in production."""
-    if request.url.path.startswith("/api"):
-        request.scope["path"] = request.url.path[4:] or "/"
+async def routing_middleware(request: Request, call_next):
+    """Route requests: /api/* -> strip prefix and hit API endpoints.
+    Direct browser navigation (non-/api, non-/health, non-/auth) -> serve SPA."""
+    path = request.url.path
+    if path.startswith("/api"):
+        # Frontend API calls: strip /api prefix so /api/stats -> /stats
+        request.scope["path"] = path[4:] or "/"
+        return await call_next(request)
+
+    # Serve SPA for browser navigation to frontend routes
+    # (skip /health, /auth, /assets, and actual static files)
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    if (os.path.isdir(static_dir)
+            and not path.startswith(("/health", "/auth", "/assets"))
+            and "text/html" in request.headers.get("accept", "")):
+        # Check if it's an actual static file first
+        file_path = os.path.join(static_dir, path.lstrip("/"))
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(static_dir, "index.html"))
+
     return await call_next(request)
 
 
