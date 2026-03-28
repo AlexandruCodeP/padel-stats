@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { getMois, getAnalyticsAge, getAnalyticsProfil } from '../api';
-import { Clock, Users, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { getMois, getAnalyticsAge, getAnalyticsProfil, getAnalyticsEvolutionAgeMoyen } from '../api';
+import { Clock, Users, TrendingUp } from 'lucide-react';
 
 const HOMME = '#38BDF8';
 const FEMME = '#FB7185';
@@ -32,9 +32,14 @@ export default function Age() {
     const [profilAllF, setProfilAllF] = useState(null);
     const [profil100H, setProfil100H] = useState(null);
     const [profil100F, setProfil100F] = useState(null);
+    const [evoAge, setEvoAge] = useState([]);
+    const [visibleLines, setVisibleLines] = useState(new Set(['avg_age', 'avg_age_h', 'avg_age_f']));
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
+    useEffect(() => {
+        getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); });
+        getAnalyticsEvolutionAgeMoyen().then(setEvoAge).catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (!mois) return;
@@ -141,6 +146,63 @@ export default function Age() {
                     ))}
                 </div>
             </div>
+
+            {/* Évolution de l'âge moyen dans le temps */}
+            {evoAge.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-1 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-primary" /> Évolution de l'âge moyen dans le temps
+                    </h3>
+                    <p className="text-xs text-text-secondary mb-3">Cliquez sur une série pour l'afficher ou la masquer</p>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        {[
+                            { key: 'avg_age', label: 'Tous', color: '#8b5cf6' },
+                            { key: 'avg_age_h', label: 'Hommes', color: HOMME },
+                            { key: 'avg_age_f', label: 'Femmes', color: FEMME },
+                        ].map(({ key, label, color }) => {
+                            const active = visibleLines.has(key);
+                            return (
+                                <button
+                                    key={key}
+                                    onClick={() => setVisibleLines(prev => {
+                                        const next = new Set(prev);
+                                        next.has(key) ? next.delete(key) : next.add(key);
+                                        return next;
+                                    })}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${active ? 'text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-text-secondary/50 border-border'}`}
+                                    style={active ? { backgroundColor: color, borderColor: color } : {}}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={evoAge}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} unit=" ans" />
+                            <Tooltip
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null;
+                                    return (
+                                        <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                            <p className="font-semibold mb-1">{formatMoisLabel(label)}</p>
+                                            {payload.map((p, i) => (
+                                                <p key={i} style={{ color: p.color }}>
+                                                    {p.name} : {typeof p.value === 'number' ? `${p.value} ans` : p.value}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    );
+                                }}
+                            />
+                            {visibleLines.has('avg_age') && <Line type="monotone" dataKey="avg_age" name="Tous" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
+                            {visibleLines.has('avg_age_h') && <Line type="monotone" dataKey="avg_age_h" name="Hommes" stroke={HOMME} strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
+                            {visibleLines.has('avg_age_f') && <Line type="monotone" dataKey="avg_age_f" name="Femmes" stroke={FEMME} strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {/* Age moyen par niveau — tous */}
