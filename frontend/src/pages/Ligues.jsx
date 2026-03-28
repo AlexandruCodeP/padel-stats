@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Users, User, MapPin } from 'lucide-react';
-import { getLigues, getStats, getMois, getAnalyticsRegionTableau } from '../api';
+import { Users, User, MapPin, TrendingUp } from 'lucide-react';
+import { getLigues, getStats, getMois, getAnalyticsRegionTableau, getAnalyticsEvolutionLigues } from '../api';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import KPICard from '../components/KPICard';
 import FranceMap from '../components/FranceMap';
 
@@ -14,13 +15,20 @@ export default function LiguesPage() {
     const [genre, setGenre] = useState('');
     const [tableau, setTableau] = useState([]);
     const [tableauLoading, setTableauLoading] = useState(false);
+    const [evoLigues, setEvoLigues] = useState({ ligues: [], data: [] });
+    const [visibleLigues, setVisibleLigues] = useState(new Set());
+
+    const COLORS = ['#0ea5e9', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#e11d48', '#a855f7'];
+    const TOP_N = 8;
 
     useEffect(() => {
-        Promise.all([getLigues(), getStats(), getMois()]).then(([l, s, m]) => {
+        Promise.all([getLigues(), getStats(), getMois(), getAnalyticsEvolutionLigues()]).then(([l, s, m, evo]) => {
             setLigues(l);
             setStats(s);
             setMoisList(m);
             if (m.length) setMois(m[0].mois);
+            setEvoLigues(evo);
+            setVisibleLigues(new Set(evo.ligues.slice(0, TOP_N)));
             setLoading(false);
         });
     }, []);
@@ -136,6 +144,74 @@ export default function LiguesPage() {
                             })}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Évolution des ligues dans le temps */}
+            {evoLigues.data.length > 1 && (
+                <div className="bg-card rounded-xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-primary" /> Évolution des ligues dans le temps
+                    </h3>
+                    <p className="text-text-secondary text-xs mb-3">Cliquez sur une ligue pour l'afficher ou la masquer</p>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        <button
+                            onClick={() => setVisibleLigues(new Set(evoLigues.ligues.slice(0, TOP_N)))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white text-text-secondary hover:bg-gray-50 transition-colors"
+                        >
+                            Top {TOP_N}
+                        </button>
+                        <button
+                            onClick={() => setVisibleLigues(prev => prev.size === evoLigues.ligues.length ? new Set(evoLigues.ligues.slice(0, TOP_N)) : new Set(evoLigues.ligues))}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-white text-text-secondary hover:bg-gray-50 transition-colors"
+                        >
+                            {visibleLigues.size === evoLigues.ligues.length ? 'Réduire' : 'Toutes'}
+                        </button>
+                        <div className="w-px bg-border mx-1" />
+                        {evoLigues.ligues.map((ligue, i) => {
+                            const color = COLORS[i % COLORS.length];
+                            const active = visibleLigues.has(ligue);
+                            return (
+                                <button
+                                    key={ligue}
+                                    onClick={() => setVisibleLigues(prev => {
+                                        const next = new Set(prev);
+                                        next.has(ligue) ? next.delete(ligue) : next.add(ligue);
+                                        return next;
+                                    })}
+                                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 border ${active ? 'text-white shadow-sm' : 'bg-white text-text-secondary/50 border-border'}`}
+                                    style={active ? { backgroundColor: color, borderColor: color } : {}}
+                                >
+                                    {ligue}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <ResponsiveContainer width="100%" height={400}>
+                        <LineChart data={evoLigues.data}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => v.toLocaleString('fr-FR')} />
+                            <Tooltip
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null;
+                                    const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
+                                    return (
+                                        <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                            <p className="font-semibold mb-1">{formatMoisLabel(label)}</p>
+                                            {sorted.map((p, i) => (
+                                                <p key={i} style={{ color: p.color }}>
+                                                    {p.name} : {typeof p.value === 'number' ? p.value.toLocaleString('fr-FR') : p.value}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    );
+                                }}
+                            />
+                            {evoLigues.ligues.map((ligue, i) => visibleLigues.has(ligue) && (
+                                <Line key={ligue} type="monotone" dataKey={ligue} name={ligue} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} connectNulls />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
                 </div>
             )}
 

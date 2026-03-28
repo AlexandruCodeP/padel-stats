@@ -158,3 +158,8 @@ export const getAnalyticsEvolutionAssimiles = (genre) => {
     return fetchJSON(`/analytics/evolution-assimiles?${params}`);
 };
 export const getAnalyticsEvolutionAgeMoyen = () => fetchJSON('/analytics/evolution-age-moyen');
+export const getAnalyticsEvolutionLigues = (genre) => {
+    const params = new URLSearchParams();
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-ligues?${params}`);
+};

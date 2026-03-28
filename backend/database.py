@@ -804,6 +804,44 @@ def analytics_evolution_nationalites(conn, genre=None, top_pays=5):
     return {"nationalites": nats, "data": result}
 
 
+def analytics_evolution_ligues(conn, genre=None):
+    """Evolution du nombre de joueurs par ligue dans le temps."""
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+
+    rows = conn.execute(
+        f"""SELECT c.mois, c.ligue, COUNT(*) as total
+            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+            WHERE c.ligue IS NOT NULL AND c.ligue != '' {gf}
+            GROUP BY c.mois, c.ligue ORDER BY c.mois ASC""",
+        gp,
+    ).fetchall()
+
+    from collections import defaultdict
+    monthly = defaultdict(dict)
+    all_ligues = set()
+    for r in rows:
+        monthly[r["mois"]][r["ligue"]] = r["total"]
+        all_ligues.add(r["ligue"])
+
+    # Sort ligues by their total in the latest month (desc)
+    mois_sorted = sorted(monthly.keys())
+    if mois_sorted:
+        last = monthly[mois_sorted[-1]]
+        ligues_sorted = sorted(all_ligues, key=lambda l: last.get(l, 0), reverse=True)
+    else:
+        ligues_sorted = sorted(all_ligues)
+
+    result = []
+    for m in mois_sorted:
+        entry = {"mois": m}
+        for ligue in ligues_sorted:
+            entry[ligue] = monthly[m].get(ligue, 0)
+        result.append(entry)
+
+    return {"ligues": ligues_sorted, "data": result}
+
+
 def analytics_rang_points_curve(conn, mois=None, genre=None):
     """Courbe rang → points moyens (forme logarithmique naturelle)."""
     if not mois:
