@@ -85,7 +85,8 @@ export default function Joueur() {
                                 </span>
                             )}
                             {joueur.nationalite && <span className="flex items-center gap-1">{flagEmoji(joueur.nationalite)} {joueur.nationalite}</span>}
-                            {latest.ligue && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {latest.ligue}</span>}
+                            {latest.club && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {latest.club}</span>}
+                            {latest.ligue && <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{latest.ligue}</span>}
                             {latest.age && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {latest.age} ans</span>}
                         </div>
                     </div>
@@ -159,6 +160,7 @@ export default function Joueur() {
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Points</th>
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Évolution</th>
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Tournois</th>
+                                <th className="px-4 py-3 text-left font-medium text-text-secondary">Club</th>
                                 <th className="px-4 py-3 text-left font-medium text-text-secondary">Ligue</th>
                             </tr>
                         </thead>
@@ -171,6 +173,7 @@ export default function Joueur() {
                                     <td className={`px-4 py-3 text-right font-semibold ${h.evolution?.startsWith('+') ? 'text-success' : h.evolution?.startsWith('-') ? 'text-danger' : 'text-text-secondary'
                                         }`}>{h.evolution || '='}</td>
                                     <td className="px-4 py-3 text-right">{h.nb_tournois}</td>
+                                    <td className="px-4 py-3 text-sm">{h.club || ''}</td>
                                     <td className="px-4 py-3">{h.ligue}</td>
                                 </tr>
                             ))}

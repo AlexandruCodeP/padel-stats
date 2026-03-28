@@ -38,6 +38,13 @@ export const rechercher = (q, genre, limit = 20) => {
 export const getTop = (genre, limit = 10) => fetchJSON(`/top/${genre}?limit=${limit}`);
 export const getComparaison = (id1, id2) => fetchJSON(`/comparaison?joueur1=${id1}&joueur2=${id2}`);
 export const getLigues = (mois) => fetchJSON(`/ligues${mois ? `?mois=${mois}` : ''}`);
+export const getClubs = (mois, genre, search) => {
+    const params = new URLSearchParams();
+    if (mois) params.set('mois', mois);
+    if (genre) params.set('genre', genre);
+    if (search) params.set('search', search);
+    return fetchJSON(`/clubs?${params}`);
+};
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 

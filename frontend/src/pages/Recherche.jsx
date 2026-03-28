@@ -82,7 +82,7 @@ export default function Recherche() {
                                             </div>
                                             <div>
                                                 <div className="font-medium">{s.prenom} {s.nom}</div>
-                                                <div className="text-xs text-text-secondary">{s.nationalite} • {s.ligue}</div>
+                                                <div className="text-xs text-text-secondary">{[s.nationalite, s.club, s.ligue].filter(Boolean).join(' • ')}</div>
                                             </div>
                                         </div>
                                         <span className="text-xs text-text-secondary font-medium">{s.points ? `${s.points.toLocaleString('fr-FR')} pts` : ''}</span>

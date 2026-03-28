@@ -20,7 +20,7 @@ from auth import router as auth_router
 from database import (
     init_db, get_db, get_stats, get_mois_disponibles, get_classement,
     get_classement_export,
-    get_joueur, search_joueurs, get_top, compare_joueurs, get_ligues,
+    get_joueur, search_joueurs, get_top, compare_joueurs, get_ligues, get_clubs,
     dashboard_overview, dashboard_progressions, dashboard_chutes,
     dashboard_evolution_mensuelle, dashboard_ages, dashboard_ligues,
     analytics_numero_un, analytics_difficulte_progression,
@@ -186,9 +186,10 @@ def classement(
     page: int = 0,
     size: int = 50,
     search: Optional[str] = None,
+    club: Optional[str] = None,
 ):
     with get_db() as conn:
-        return get_classement(conn, mois, genre, ligue, page, size, search)
+        return get_classement(conn, mois, genre, ligue, page, size, search, club)
 
 
 @app.get("/joueur/{joueur_id}")
@@ -222,6 +223,12 @@ def comparaison(joueur1: int = Query(...), joueur2: int = Query(...)):
 def ligues(mois: Optional[str] = None):
     with get_db() as conn:
         return get_ligues(conn, mois)
+
+
+@app.get("/clubs")
+def clubs(mois: Optional[str] = None, genre: Optional[str] = None, search: Optional[str] = None):
+    with get_db() as conn:
+        return get_clubs(conn, mois, genre, search)
 
 
 # ── Dashboard endpoints ──────────────────────────────────────────────────

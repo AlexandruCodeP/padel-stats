@@ -97,7 +97,7 @@ def generate_test_data(mois_str=None, nb_hommes=2000, nb_femmes=1000):
             ligue = random.choice(LIGUES)
             age = random.randint(16, 65)
             est_assimile = random.random() < 0.05
-            classement_rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, rang, est_assimile, age, False, genre))
+            classement_rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, rang, est_assimile, age, False, "H", ""))
 
         # Generate women
         for i in range(nb_femmes):
@@ -113,7 +113,7 @@ def generate_test_data(mois_str=None, nb_hommes=2000, nb_femmes=1000):
             ligue = random.choice(LIGUES)
             age = random.randint(16, 55)
             est_assimile = random.random() < 0.03
-            classement_rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, rang, est_assimile, age, False, genre))
+            classement_rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, rang, est_assimile, age, False, "F", ""))
 
         bulk_upsert_classements(conn, classement_rows)
         conn.commit()
@@ -189,7 +189,8 @@ def import_from_api(mois_str=None, serie=None):
                     meilleur = item.get("meilleurClassement") or rang
                     est_assimile = item.get("assimilation", False)
                     age = item.get("ageSportif")  # ageSportif = real age, categorieAge = code
-                    classement_rows.append((joueur_id, mois_str, rang, points, str(evolution), nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s))
+                    club = item.get("club") or ""
+                    classement_rows.append((joueur_id, mois_str, rang, points, str(evolution), nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s, club))
 
                 total_imported += len(items)
                 total_api = data.get("total", 0)
@@ -234,6 +235,7 @@ def import_from_csv(filepath):
                     int(row.get("age", 0)) or None,
                     row.get("est_anonyme", "0") == "1",
                     row.get("genre", "H"),
+                    row.get("club", ""),
                 ))
         bulk_upsert_classements(conn, classement_rows)
         conn.commit()

@@ -55,6 +55,11 @@ export default function PlayerCard({ joueur, rank }) {
                         {!joueur.est_anonyme && joueur.nationalite && (
                             <span className="text-xs text-text-secondary">{joueur.nationalite}</span>
                         )}
+                        {joueur.club && (
+                            <span className="text-xs text-text-secondary truncate max-w-[200px]" title={joueur.club}>
+                                {joueur.club}
+                            </span>
+                        )}
                         {joueur.ligue && (
                             <span
                                 className="text-xs font-medium px-1.5 py-0.5 rounded-full"

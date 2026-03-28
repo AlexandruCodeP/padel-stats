@@ -82,7 +82,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         """)
         # Migrations for existing DBs
-        for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT")]:
+        for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT")]:
             try:
                 conn.execute(f"ALTER TABLE classements ADD COLUMN {col} {default}")
                 conn.commit()
@@ -110,14 +110,15 @@ def upsert_joueur(conn, nom, prenom, genre, nationalite):
 def bulk_upsert_classements(conn, rows):
     conn.executemany(
         """INSERT INTO classements
-           (joueur_id, mois, rang, points, evolution, nb_tournois, ligue, meilleur_classement, est_assimile, age, est_anonyme, genre)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+           (joueur_id, mois, rang, points, evolution, nb_tournois, ligue, meilleur_classement, est_assimile, age, est_anonyme, genre, club)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(joueur_id, mois) DO UPDATE SET
              rang=excluded.rang, points=excluded.points, evolution=excluded.evolution,
              nb_tournois=excluded.nb_tournois, ligue=excluded.ligue,
              meilleur_classement=excluded.meilleur_classement,
              est_assimile=excluded.est_assimile, age=excluded.age,
-             est_anonyme=excluded.est_anonyme, genre=excluded.genre""",
+             est_anonyme=excluded.est_anonyme, genre=excluded.genre,
+             club=excluded.club""",
         rows,
     )
 
@@ -143,14 +144,16 @@ def get_dernier_mois(conn):
 
 # ── Query: classement ────────────────────────────────────────────────────
 
-def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=None):
+def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=None, club=None):
     where, params = ["c.mois=?"], [mois]
     if genre:
         where.append("c.genre=?"); params.append(genre)
     if ligue:
         where.append("c.ligue=?"); params.append(ligue)
+    if club:
+        where.append("c.club=?"); params.append(club)
     if search:
-        where.append("(j.nom LIKE ? OR j.prenom LIKE ?)"); params += [f"%{search}%", f"%{search}%"]
+        where.append("(j.nom LIKE ? OR j.prenom LIKE ? OR c.club LIKE ?)"); params += [f"%{search}%", f"%{search}%", f"%{search}%"]
     w = " AND ".join(where)
 
     total = conn.execute(f"SELECT COUNT(*) as cnt FROM classements c JOIN joueurs j ON j.id=c.joueur_id WHERE {w}", params).fetchone()["cnt"]
@@ -158,7 +161,7 @@ def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=N
     params += [size, page * size]
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
-                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.est_anonyme
+                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.est_anonyme, c.club
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE {w} ORDER BY c.rang ASC LIMIT ? OFFSET ?""",
         params,
@@ -175,7 +178,7 @@ def get_classement_export(conn, mois, genre=None):
 
     rows = conn.execute(
         f"""SELECT c.rang, j.nom, j.prenom, j.nationalite, c.genre,
-                   c.points, c.evolution, c.nb_tournois, c.ligue, c.est_assimile, c.est_anonyme
+                   c.points, c.evolution, c.nb_tournois, c.ligue, c.est_assimile, c.est_anonyme, c.club
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE {w} ORDER BY c.rang ASC""",
         params,
@@ -207,7 +210,7 @@ def search_joueurs(conn, q, genre=None, limit=20):
         return []
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
-                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile
+                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.club
             FROM joueurs j LEFT JOIN classements c ON c.joueur_id=j.id AND c.mois=?
             WHERE {w} ORDER BY c.rang ASC NULLS LAST LIMIT ?""",
         [dernier_mois] + params + [limit],
@@ -223,7 +226,7 @@ def get_top(conn, genre, limit=10):
         return []
     rows = conn.execute(
         """SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
-                  c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile
+                  c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.club
            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
            WHERE c.mois=? AND c.genre=? ORDER BY c.rang ASC LIMIT ?""",
         (mois, genre, limit),
@@ -255,6 +258,33 @@ def get_ligues(conn, mois=None):
            WHERE c.mois=? AND c.ligue IS NOT NULL AND c.ligue != ''
            GROUP BY c.ligue ORDER BY total DESC""",
         (mois,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Query: clubs ─────────────────────────────────────────────────────────
+
+def get_clubs(conn, mois=None, genre=None, search=None):
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    where, params = ["c.mois=?", "c.club IS NOT NULL", "c.club != ''"], [mois]
+    if genre:
+        where.append("c.genre=?"); params.append(genre)
+    if search:
+        where.append("c.club LIKE ?"); params.append(f"%{search}%")
+    w = " AND ".join(where)
+    rows = conn.execute(
+        f"""SELECT c.club,
+                  COUNT(*) as total,
+                  SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                  SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes,
+                  MIN(c.rang) as meilleur_rang
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+           WHERE {w}
+           GROUP BY c.club ORDER BY total DESC""",
+        params,
     ).fetchall()
     return [dict(r) for r in rows]
 
