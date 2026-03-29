@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, User, Trophy, Calendar, FileDown, Loader2 } from 'lucide-react';
+import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe } from 'lucide-react';
 import { getStats, getMois, getClassement, getClassementExport } from '../api';
 import KPICard from '../components/KPICard';
 import PlayerCard from '../components/PlayerCard';
@@ -13,6 +13,7 @@ export default function Classement() {
     const [data, setData] = useState(null);
     const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [fipOnly, setFipOnly] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState('');
     const workerRef = useRef(null);
@@ -30,11 +31,12 @@ export default function Classement() {
         setLoading(true);
         const params = { page, size: 50 };
         if (genre) params.genre = genre;
+        if (fipOnly) params.fip_only = true;
         getClassement(mois, params).then(d => {
             setData(d);
             setLoading(false);
         });
-    }, [mois, genre, page]);
+    }, [mois, genre, page, fipOnly]);
 
     const formatMoisLabel = (m) => {
         if (!m) return '';
@@ -152,6 +154,17 @@ export default function Classement() {
                             </button>
                         ))}
                     </div>
+
+                    <button
+                        onClick={() => { setFipOnly(f => !f); setPage(0); }}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border ${fipOnly
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                            : 'bg-white text-text-secondary border-border hover:bg-gray-50'
+                        }`}
+                    >
+                        <Globe size={15} />
+                        FIP
+                    </button>
 
                     <button
                         onClick={exportPDF}

@@ -188,9 +188,10 @@ def classement(
     size: int = 50,
     search: Optional[str] = None,
     club: Optional[str] = None,
+    fip_only: bool = False,
 ):
     with get_db() as conn:
-        return get_classement(conn, mois, genre, ligue, page, size, search, club)
+        return get_classement(conn, mois, genre, ligue, page, size, search, club, fip_only)
 
 
 @app.get("/joueur/{joueur_id}")

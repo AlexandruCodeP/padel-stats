@@ -60,6 +60,18 @@ export default function PlayerCard({ joueur, rank }) {
                                 {joueur.club}
                             </span>
                         )}
+                        {joueur.classement_fip && (
+                            <span
+                                className="text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{
+                                    border: '1px solid rgba(16,185,129,0.4)',
+                                    color: '#10B981',
+                                    backgroundColor: 'rgba(16,185,129,0.07)',
+                                }}
+                            >
+                                FIP #{joueur.classement_fip}
+                            </span>
+                        )}
                         {joueur.ligue && (
                             <span
                                 className="text-xs font-medium px-1.5 py-0.5 rounded-full"

@@ -144,7 +144,7 @@ def get_dernier_mois(conn):
 
 # ── Query: classement ────────────────────────────────────────────────────
 
-def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=None, club=None):
+def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=None, club=None, fip_only=False):
     where, params = ["c.mois=?"], [mois]
     if genre:
         where.append("c.genre=?"); params.append(genre)
@@ -152,6 +152,8 @@ def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=N
         where.append("c.ligue=?"); params.append(ligue)
     if club:
         where.append("c.club=?"); params.append(club)
+    if fip_only:
+        where.append("c.classement_fip IS NOT NULL")
     if search:
         where.append("(j.nom LIKE ? OR j.prenom LIKE ? OR c.club LIKE ?)"); params += [f"%{search}%", f"%{search}%", f"%{search}%"]
     w = " AND ".join(where)
@@ -161,7 +163,7 @@ def get_classement(conn, mois, genre=None, ligue=None, page=0, size=50, search=N
     params += [size, page * size]
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
-                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.est_anonyme, c.club
+                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.est_anonyme, c.club, c.classement_fip
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE {w} ORDER BY c.rang ASC LIMIT ? OFFSET ?""",
         params,
