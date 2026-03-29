@@ -1149,5 +1149,112 @@ def analytics_evolution_etrangers_top100(conn):
     ]
 
 
+# ── Analytics: clubs ──────────────────────────────────────────────────────
+
+def analytics_clubs_tableau(conn, mois=None, genre=None):
+    """Tableau détaillé des clubs avec stats enrichies (top 200)."""
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    where, params = ["c.mois=?", "c.club IS NOT NULL", "c.club != ''"], [mois]
+    if genre:
+        where.append("c.genre=?"); params.append(genre)
+    w = " AND ".join(where)
+    rows = conn.execute(
+        f"""SELECT c.club,
+                  COUNT(*) as total,
+                  SUM(CASE WHEN c.genre='H' THEN 1 ELSE 0 END) as hommes,
+                  SUM(CASE WHEN c.genre='F' THEN 1 ELSE 0 END) as femmes,
+                  MIN(c.rang) as meilleur_rang,
+                  ROUND(AVG(c.points), 0) as avg_points,
+                  ROUND(AVG(c.age), 1) as avg_age,
+                  ROUND(AVG(c.nb_tournois), 1) as avg_tournois,
+                  SUM(CASE WHEN c.rang <= 100 THEN 1 ELSE 0 END) as top100,
+                  SUM(CASE WHEN c.rang <= 500 THEN 1 ELSE 0 END) as top500,
+                  SUM(CASE WHEN c.rang <= 1000 THEN 1 ELSE 0 END) as top1000,
+                  SUM(CASE WHEN c.age < 18 THEN 1 ELSE 0 END) as moins18,
+                  c.ligue
+           FROM classements c JOIN joueurs j ON j.id=c.joueur_id
+           WHERE {w}
+           GROUP BY c.club ORDER BY total DESC LIMIT 200""",
+        params,
+    ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["pct_femmes"] = round(d["femmes"] / d["total"] * 100, 1) if d["total"] else 0
+        result.append(d)
+    return result
+
+
+def analytics_evolution_top_clubs(conn, genre=None, top_n=20):
+    """Evolution du nombre de joueurs pour les top N clubs dans le temps."""
+    from collections import defaultdict
+    # Find top clubs from latest month
+    dernier = get_dernier_mois(conn)
+    if not dernier:
+        return {"clubs": [], "data": []}
+    where_top, params_top = ["c.mois=?", "c.club IS NOT NULL", "c.club != ''"], [dernier]
+    if genre:
+        where_top.append("c.genre=?"); params_top.append(genre)
+    top_clubs = conn.execute(
+        f"""SELECT c.club, COUNT(*) as total
+           FROM classements c WHERE {" AND ".join(where_top)}
+           GROUP BY c.club ORDER BY total DESC LIMIT ?""",
+        params_top + [top_n],
+    ).fetchall()
+    club_names = [r["club"] for r in top_clubs]
+    if not club_names:
+        return {"clubs": [], "data": []}
+
+    # Get evolution data
+    placeholders = ",".join(["?"] * len(club_names))
+    where_evo = [f"c.club IN ({placeholders})", "c.club IS NOT NULL"]
+    params_evo = list(club_names)
+    if genre:
+        where_evo.append("c.genre=?"); params_evo.append(genre)
+    rows = conn.execute(
+        f"""SELECT c.mois, c.club, COUNT(*) as total
+           FROM classements c
+           WHERE {" AND ".join(where_evo)}
+           GROUP BY c.mois, c.club ORDER BY c.mois ASC""",
+        params_evo,
+    ).fetchall()
+
+    monthly = defaultdict(dict)
+    for r in rows:
+        monthly[r["mois"]][r["club"]] = r["total"]
+
+    result = []
+    for m in sorted(monthly.keys()):
+        entry = {"mois": m}
+        for club in club_names:
+            entry[club] = monthly[m].get(club, 0)
+        result.append(entry)
+    return {"clubs": club_names, "data": result}
+
+
+def analytics_clubs_par_ligue(conn, mois=None, genre=None):
+    """Nombre de clubs par ligue."""
+    if not mois:
+        mois = get_dernier_mois(conn)
+    if not mois:
+        return []
+    where, params = ["c.mois=?", "c.club IS NOT NULL", "c.club != ''", "c.ligue IS NOT NULL", "c.ligue != ''"], [mois]
+    if genre:
+        where.append("c.genre=?"); params.append(genre)
+    rows = conn.execute(
+        f"""SELECT c.ligue,
+                  COUNT(DISTINCT c.club) as nb_clubs,
+                  COUNT(*) as nb_joueurs
+           FROM classements c
+           WHERE {" AND ".join(where)}
+           GROUP BY c.ligue ORDER BY nb_clubs DESC""",
+        params,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 if __name__ == "__main__":
     init_db()

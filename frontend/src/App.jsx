@@ -15,6 +15,7 @@ import Nationalites from './pages/Nationalites';
 import Age from './pages/Age';
 import Points from './pages/Points';
 import Frequence from './pages/Frequence';
+import ClubsPage from './pages/Clubs';
 
 
 function AppLayout({ children }) {
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/age" element={<AppLayout><Age /></AppLayout>} />
         <Route path="/points" element={<AppLayout><Points /></AppLayout>} />
         <Route path="/frequence" element={<AppLayout><Frequence /></AppLayout>} />
+        <Route path="/clubs" element={<AppLayout><ClubsPage /></AppLayout>} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, Search, Users, LayoutDashboard, TrendingUp, GitCompare, Moon, Sun, Activity, Home, CalendarArrowUp, ChevronDown, Globe, Clock, Award, Repeat, LineChart } from 'lucide-react';
+import { BarChart3, Search, Users, LayoutDashboard, TrendingUp, GitCompare, Moon, Sun, Activity, Home, CalendarArrowUp, ChevronDown, Globe, Clock, Award, Repeat, LineChart, Building2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const SIDEBAR_BG = '#0F172A';
@@ -20,6 +20,7 @@ const navItems = [
             { to: '/age', label: 'Age', icon: Clock },
             { to: '/points', label: 'Points', icon: Award },
             { to: '/ligues', label: 'Ligues', icon: Users },
+            { to: '/clubs', label: 'Clubs', icon: Building2 },
             { to: '/frequence', label: 'Frequence', icon: Repeat },
         ],
     },
@@ -36,7 +37,7 @@ const navItems = [
 
 // All routes that belong to each dropdown (for active state)
 const dropdownRoutes = {
-    stats: ['/evolution', '/nationalites', '/age', '/points', '/ligues', '/frequence'],
+    stats: ['/evolution', '/nationalites', '/age', '/points', '/ligues', '/clubs', '/frequence'],
     compare: ['/comparateur', '/comparaison-mois', '/tendances'],
 };
 

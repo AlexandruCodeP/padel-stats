@@ -35,6 +35,7 @@ from database import (
     analytics_evolution_ligues,
     analytics_evolution_top100_par_ligue, analytics_evolution_moins18_par_ligue,
     analytics_evolution_assimiles_par_ligue, analytics_evolution_etrangers_top100,
+    analytics_clubs_tableau, analytics_evolution_top_clubs, analytics_clubs_par_ligue,
 )
 
 logger = logging.getLogger("padel.scheduler")
@@ -395,6 +396,24 @@ def ana_evolution_assimiles_par_ligue(genre: Optional[str] = None):
 def ana_evolution_etrangers_top100():
     with get_db() as conn:
         return analytics_evolution_etrangers_top100(conn)
+
+
+@app.get("/analytics/clubs-tableau")
+def ana_clubs_tableau(mois: Optional[str] = None, genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_clubs_tableau(conn, mois, genre)
+
+
+@app.get("/analytics/evolution-top-clubs")
+def ana_evolution_top_clubs(genre: Optional[str] = None, top_n: int = 20):
+    with get_db() as conn:
+        return analytics_evolution_top_clubs(conn, genre, top_n)
+
+
+@app.get("/analytics/clubs-par-ligue")
+def ana_clubs_par_ligue(mois: Optional[str] = None, genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_clubs_par_ligue(conn, mois, genre)
 
 
 # ── Serve frontend static files in production ────────────────────────────────

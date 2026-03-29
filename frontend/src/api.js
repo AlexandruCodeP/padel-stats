@@ -186,3 +186,20 @@ export const getAnalyticsEvolutionAssimilesParLigue = (genre) => {
     return fetchJSON(`/analytics/evolution-assimiles-par-ligue?${params}`);
 };
 export const getAnalyticsEvolutionEtrangersTop100 = () => fetchJSON('/analytics/evolution-etrangers-top100');
+export const getAnalyticsClubsTableau = (mois, genre) => {
+    const params = new URLSearchParams();
+    if (mois) params.set('mois', mois);
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/clubs-tableau?${params}`);
+};
+export const getAnalyticsEvolutionTopClubs = (genre, top_n = 20) => {
+    const params = new URLSearchParams({ top_n });
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/evolution-top-clubs?${params}`);
+};
+export const getAnalyticsClubsParLigue = (mois, genre) => {
+    const params = new URLSearchParams();
+    if (mois) params.set('mois', mois);
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/clubs-par-ligue?${params}`);
+};
