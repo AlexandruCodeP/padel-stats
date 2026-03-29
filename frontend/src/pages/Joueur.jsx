@@ -86,6 +86,11 @@ export default function Joueur() {
                             )}
                             {joueur.nationalite && <span className="flex items-center gap-1">{flagEmoji(joueur.nationalite)} {joueur.nationalite}</span>}
                             {latest.club && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {latest.club}</span>}
+                            {latest.classement_fip && (
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                                    FIP #{latest.classement_fip}
+                                </span>
+                            )}
                             {latest.ligue && <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{latest.ligue}</span>}
                             {latest.age && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {latest.age} ans</span>}
                         </div>
@@ -157,6 +162,7 @@ export default function Joueur() {
                             <tr className="bg-gray-50">
                                 <th className="px-4 py-3 text-left font-medium text-text-secondary">Mois</th>
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Rang</th>
+                                {historique.some(h => h.classement_fip) && <th className="px-4 py-3 text-right font-medium text-text-secondary">FIP</th>}
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Points</th>
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Évolution</th>
                                 <th className="px-4 py-3 text-right font-medium text-text-secondary">Tournois</th>
@@ -169,6 +175,7 @@ export default function Joueur() {
                                 <tr key={i} className="border-t border-border hover:bg-gray-50 transition-colors">
                                     <td className="px-4 py-3 font-medium">{h.mois}</td>
                                     <td className="px-4 py-3 text-right font-semibold">{h.rang}</td>
+                                    {historique.some(h => h.classement_fip) && <td className="px-4 py-3 text-right font-medium text-emerald-600">{h.classement_fip || '-'}</td>}
                                     <td className="px-4 py-3 text-right">{h.points ? h.points.toLocaleString('fr-FR') : h.est_assimile ? '—' : '0'}</td>
                                     <td className={`px-4 py-3 text-right font-semibold ${h.evolution?.startsWith('+') ? 'text-success' : h.evolution?.startsWith('-') ? 'text-danger' : 'text-text-secondary'
                                         }`}>{h.evolution || '='}</td>

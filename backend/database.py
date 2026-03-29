@@ -82,7 +82,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         """)
         # Migrations for existing DBs
-        for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT")]:
+        for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT"), ("classement_fip", "INTEGER")]:
             try:
                 conn.execute(f"ALTER TABLE classements ADD COLUMN {col} {default}")
                 conn.commit()
@@ -110,15 +110,15 @@ def upsert_joueur(conn, nom, prenom, genre, nationalite):
 def bulk_upsert_classements(conn, rows):
     conn.executemany(
         """INSERT INTO classements
-           (joueur_id, mois, rang, points, evolution, nb_tournois, ligue, meilleur_classement, est_assimile, age, est_anonyme, genre, club)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           (joueur_id, mois, rang, points, evolution, nb_tournois, ligue, meilleur_classement, est_assimile, age, est_anonyme, genre, club, classement_fip)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(joueur_id, mois) DO UPDATE SET
              rang=excluded.rang, points=excluded.points, evolution=excluded.evolution,
              nb_tournois=excluded.nb_tournois, ligue=excluded.ligue,
              meilleur_classement=excluded.meilleur_classement,
              est_assimile=excluded.est_assimile, age=excluded.age,
              est_anonyme=excluded.est_anonyme, genre=excluded.genre,
-             club=excluded.club""",
+             club=excluded.club, classement_fip=excluded.classement_fip""",
         rows,
     )
 
@@ -210,7 +210,7 @@ def search_joueurs(conn, q, genre=None, limit=20):
         return []
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
-                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.club
+                   c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.club, c.classement_fip
             FROM joueurs j LEFT JOIN classements c ON c.joueur_id=j.id AND c.mois=?
             WHERE {w} ORDER BY c.rang ASC NULLS LAST LIMIT ?""",
         [dernier_mois] + params + [limit],
@@ -226,7 +226,7 @@ def get_top(conn, genre, limit=10):
         return []
     rows = conn.execute(
         """SELECT j.id, j.nom, j.prenom, c.genre, j.nationalite,
-                  c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.club
+                  c.rang, c.points, c.evolution, c.nb_tournois, c.ligue, c.age, c.est_assimile, c.club, c.classement_fip
            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
            WHERE c.mois=? AND c.genre=? ORDER BY c.rang ASC LIMIT ?""",
         (mois, genre, limit),

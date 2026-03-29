@@ -190,7 +190,8 @@ def import_from_api(mois_str=None, serie=None):
                     est_assimile = item.get("assimilation", False)
                     age = item.get("ageSportif")  # ageSportif = real age, categorieAge = code
                     club = item.get("club") or ""
-                    classement_rows.append((joueur_id, mois_str, rang, points, str(evolution), nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s, club))
+                    classement_fip = item.get("classementFip") or None
+                    classement_rows.append((joueur_id, mois_str, rang, points, str(evolution), nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s, club, classement_fip))
 
                 total_imported += len(items)
                 total_api = data.get("total", 0)
