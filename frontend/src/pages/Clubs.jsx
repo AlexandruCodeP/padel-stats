@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Users, User, TrendingUp, MapPin, Award, Search } from 'lucide-react';
 import { getMois, getStats, getAnalyticsClubsTableau, getAnalyticsEvolutionTopClubs, getAnalyticsClubsParLigue } from '../api';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList } from 'recharts';
 import KPICard from '../components/KPICard';
 
 const COLORS = ['#0ea5e9', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#e11d48', '#a855f7', '#0284c7', '#d946ef', '#65a30d', '#ea580c', '#7c3aed', '#0891b2', '#dc2626'];
@@ -25,6 +25,7 @@ export default function Clubs() {
     const [visibleClubs, setVisibleClubs] = useState(new Set());
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [topN, setTopN] = useState(20);
 
     useEffect(() => {
         Promise.all([getMois(), getStats(), getAnalyticsEvolutionTopClubs()]).then(([m, s, evo]) => {
@@ -95,11 +96,21 @@ export default function Clubs() {
 
             {/* Top clubs bar chart */}
             <div className="bg-card rounded-xl border border-border p-5 shadow-sm mb-6">
-                <h3 className="font-semibold text-text mb-3 flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-primary" /> Top 20 clubs par nombre de joueurs
-                </h3>
-                <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={clubs.slice(0, 20)} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <h3 className="font-semibold text-text flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-primary" /> Top {topN === 0 ? 'tous les' : topN} clubs par nombre de joueurs
+                    </h3>
+                    <div className="flex rounded-xl border border-border overflow-hidden">
+                        {[{ val: 20, label: 'Top 20' }, { val: 50, label: 'Top 50' }, { val: 100, label: 'Top 100' }, { val: 0, label: 'Tous' }].map(opt => (
+                            <button key={opt.val} onClick={() => setTopN(opt.val)}
+                                className={`px-3 py-1.5 text-xs font-medium transition-colors ${topN === opt.val ? 'bg-primary text-white' : 'bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <ResponsiveContainer width="100%" height={Math.max(400, (topN === 0 ? clubs.length : Math.min(topN, clubs.length)) * 22 + 20)}>
+                    <BarChart data={clubs.slice(0, topN === 0 ? clubs.length : topN)} layout="vertical" margin={{ left: 10, right: 60 }}>
                         <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                         <YAxis type="category" dataKey="club" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={180} />
                         <Tooltip content={({ active, payload }) => {
@@ -117,7 +128,9 @@ export default function Clubs() {
                             );
                         }} />
                         <Bar dataKey="hommes" stackId="a" fill="#38BDF8" radius={[0, 0, 0, 0]} name="Hommes" />
-                        <Bar dataKey="femmes" stackId="a" fill="#FB7185" radius={[0, 4, 4, 0]} name="Femmes" />
+                        <Bar dataKey="femmes" stackId="a" fill="#FB7185" radius={[0, 4, 4, 0]} name="Femmes">
+                            <LabelList dataKey="total" position="right" style={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} formatter={v => v.toLocaleString('fr-FR')} />
+                        </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </div>

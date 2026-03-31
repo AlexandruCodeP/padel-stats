@@ -53,6 +53,7 @@ export default function Dashboard() {
     const [ages, setAges] = useState([]);
     const [ligues, setLigues] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [rangMax, setRangMax] = useState(1000);
 
     useEffect(() => {
         getMois().then(m => {
@@ -67,17 +68,27 @@ export default function Dashboard() {
         const g = genre || undefined;
         Promise.all([
             getDashboardOverview(mois, g),
-            getDashboardProgressions(mois, g),
-            getDashboardChutes(mois, g),
             getDashboardEvolution(g),
             getDashboardAges(mois, g),
             getDashboardLigues(mois, g),
-        ]).then(([o, p, c, e, a, l]) => {
-            setOverview(o); setProgressions(p); setChutes(c);
+        ]).then(([o, e, a, l]) => {
+            setOverview(o);
             setEvolution(e); setAges(a); setLigues(l);
             setLoading(false);
         });
     }, [mois, genre]);
+
+    useEffect(() => {
+        if (!mois) return;
+        const g = genre || undefined;
+        const rm = rangMax === 0 ? null : rangMax;
+        Promise.all([
+            getDashboardProgressions(mois, g, 10, rm),
+            getDashboardChutes(mois, g, 10, rm),
+        ]).then(([p, c]) => {
+            setProgressions(p); setChutes(c);
+        });
+    }, [mois, genre, rangMax]);
 
     const formatMoisLabel = (m) => {
         if (!m) return '';
@@ -236,6 +247,20 @@ export default function Dashboard() {
                 })()}
 
                 <div className="space-y-4">
+                    {/* Rank filter shared by progressions & chutes */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs text-text-secondary font-medium mr-1">Filtre rang :</span>
+                        {[{ val: 10, label: 'Top 10' }, { val: 20, label: 'Top 20' }, { val: 50, label: 'Top 50' }, { val: 100, label: 'Top 100' }, { val: 200, label: 'Top 200' }, { val: 500, label: 'Top 500' }, { val: 1000, label: 'Top 1000' }, { val: 0, label: '∞' }].map(opt => (
+                            <button key={opt.val} onClick={() => setRangMax(opt.val)}
+                                className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                                style={rangMax === opt.val
+                                    ? { backgroundColor: '#0047AB', color: '#fff', borderColor: '#0047AB' }
+                                    : { backgroundColor: 'white', color: '#64748B', borderColor: '#E2E8F0' }}>
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="bg-card border border-border p-5 shadow-sm" style={CARD_STYLE}>
                         <h3 className="font-semibold text-text mb-3 flex items-center gap-2 tracking-tight">
                             <TrendingUp className="w-4 h-4 text-success" /> Top progressions
