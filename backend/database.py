@@ -513,38 +513,29 @@ def analytics_inflation_points(conn, genre=None):
     gp = [genre] if genre else []
     niveaux = [1, 10, 50, 100, 500, 1000]
 
-    # Fetch ALL (mois, rang, points) where points > 0 in one query,
-    # ordered by mois ASC then rang ASC.  We iterate once in Python.
-    rows = conn.execute(
-        f"""SELECT c.mois, c.rang, c.points
-            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
-            WHERE c.points > 0 {gf}
-            ORDER BY c.mois ASC, c.rang ASC""",
-        gp,
-    ).fetchall()
+    result_dict = {}
 
-    # Group by month and find closest rank >= each target
-    from collections import OrderedDict
-    months = OrderedDict()
-    for r in rows:
-        m = r["mois"]
-        if m not in months:
-            months[m] = {f"rang_{n}": None for n in niveaux}
-            months[m]["_filled"] = set()
-        entry = months[m]
-        rang = r["rang"]
-        pts = r["points"]
-        for n in niveaux:
-            if n not in entry["_filled"] and rang >= n:
-                entry[f"rang_{n}"] = pts
-                entry["_filled"].add(n)
+    for n in niveaux:
+        # Use a window of ±10% (min 3 players) around the target rank
+        # and average their points to get a stable, noise-resistant value.
+        margin = max(3, n // 10)
+        rang_min = max(1, n - margin)
+        rang_max = n + margin
+        rows = conn.execute(
+            f"""SELECT c.mois, AVG(c.points) as pts
+                FROM classements c
+                WHERE c.rang BETWEEN ? AND ? AND c.points > 0 {gf}
+                GROUP BY c.mois
+                ORDER BY c.mois ASC""",
+            [rang_min, rang_max] + gp,
+        ).fetchall()
+        for row in rows:
+            m = row["mois"]
+            if m not in result_dict:
+                result_dict[m] = {"mois": m}
+            result_dict[m][f"rang_{n}"] = round(row["pts"]) if row["pts"] else None
 
-    result = []
-    for m, entry in months.items():
-        del entry["_filled"]
-        entry["mois"] = m
-        result.append(entry)
-    return result
+    return sorted(result_dict.values(), key=lambda x: x["mois"])
 
 
 def analytics_nationalites_par_niveau(conn, mois=None, top=100, genre=None):
