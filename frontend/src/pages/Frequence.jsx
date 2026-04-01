@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { getMois, getAnalyticsFrequence, getAnalyticsProfil } from '../api';
-import { Repeat, Users } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid } from 'recharts';
+import { getMois, getAnalyticsFrequence, getAnalyticsProfil, getAnalyticsParticipationsMensuelles } from '../api';
+import { Repeat, Users, TrendingUp, Calendar } from 'lucide-react';
 
 const COLORS = ['#0ea5e9', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
 const HOMME = '#38BDF8';
@@ -28,9 +28,13 @@ export default function Frequence() {
     const [profilAll, setProfilAll] = useState(null);
     const [profil100, setProfil100] = useState(null);
     const [profil1000, setProfil1000] = useState(null);
+    const [participationsMensuelles, setParticipationsMensuelles] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
+    useEffect(() => {
+        getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); });
+        getAnalyticsParticipationsMensuelles().then(setParticipationsMensuelles);
+    }, []);
 
     useEffect(() => {
         if (!mois) return;
@@ -163,6 +167,71 @@ export default function Frequence() {
                 ) : <p className="text-text-secondary text-center py-8 text-sm">Pas de donnees</p>}
             </div>
 
+            {/* Evolution mensuelle des participations */}
+            {participationsMensuelles.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-1 flex items-center gap-2"><Calendar className="w-4 h-4" /> Participations aux tournois par mois</h3>
+                    <p className="text-xs text-text-secondary mb-4">Nombre cumule de participations a des tournois sur les 12 derniers mois (somme des tournois joues par tous les joueurs)</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                        {(() => {
+                            const last = participationsMensuelles[participationsMensuelles.length - 1];
+                            const prev = participationsMensuelles.length > 1 ? participationsMensuelles[participationsMensuelles.length - 2] : null;
+                            const evol = prev ? last.total_participations - prev.total_participations : 0;
+                            return (
+                                <>
+                                    <div className="bg-bg rounded-xl p-3 text-center">
+                                        <div className="text-xs text-text-secondary mb-1">Total dernier mois</div>
+                                        <div className="text-xl font-bold text-text font-data">{last.total_participations?.toLocaleString('fr-FR')}</div>
+                                    </div>
+                                    <div className="bg-bg rounded-xl p-3 text-center">
+                                        <div className="text-xs text-text-secondary mb-1">Moyenne par joueur</div>
+                                        <div className="text-xl font-bold text-primary font-data">{last.moyenne}</div>
+                                    </div>
+                                    <div className="bg-bg rounded-xl p-3 text-center">
+                                        <div className="text-xs text-text-secondary mb-1">Joueurs classes</div>
+                                        <div className="text-xl font-bold text-text font-data">{last.nb_joueurs?.toLocaleString('fr-FR')}</div>
+                                    </div>
+                                    <div className="bg-bg rounded-xl p-3 text-center">
+                                        <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><TrendingUp className="w-3 h-3" /> Evolution</div>
+                                        <div className={`text-xl font-bold font-data ${evol >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{evol >= 0 ? '+' : ''}{evol.toLocaleString('fr-FR')}</div>
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </div>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <BarChart data={participationsMensuelles} margin={{ left: 10, right: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                            <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                                tickFormatter={(m) => { const [y, mo] = m.split('-'); const months = ['', 'Jan', 'Fev', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aou', 'Sep', 'Oct', 'Nov', 'Dec']; return `${months[parseInt(mo)]} ${y.slice(2)}`; }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toLocaleString('fr-FR')} />
+                            <Tooltip content={<CustomTooltip />} formatter={(v, name) => [v.toLocaleString('fr-FR'), name === 'total_hommes' ? 'Hommes' : name === 'total_femmes' ? 'Femmes' : 'Total']} />
+                            <Legend formatter={(v) => v === 'total_hommes' ? 'Hommes' : v === 'total_femmes' ? 'Femmes' : 'Total'} />
+                            <Bar dataKey="total_hommes" stackId="a" fill={HOMME} name="total_hommes" radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="total_femmes" stackId="a" fill={FEMME} name="total_femmes" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Evolution de la moyenne de tournois par joueur */}
+            {participationsMensuelles.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-1 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Moyenne de tournois par joueur</h3>
+                    <p className="text-xs text-text-secondary mb-4">Evolution de la moyenne de tournois joues par joueur classe, mois par mois</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                        <LineChart data={participationsMensuelles} margin={{ left: 10, right: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                            <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                                tickFormatter={(m) => { const [y, mo] = m.split('-'); const months = ['', 'Jan', 'Fev', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aou', 'Sep', 'Oct', 'Nov', 'Dec']; return `${months[parseInt(mo)]} ${y.slice(2)}`; }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+                            <Tooltip content={<CustomTooltip />} formatter={(v) => [v, 'Moyenne tournois/joueur']} />
+                            <Line type="monotone" dataKey="moyenne" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
             {/* Tableau recap */}
             <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                 <h3 className="font-semibold text-text mb-4">Detail par tranche</h3>
@@ -196,6 +265,43 @@ export default function Frequence() {
                     </table>
                 </div>
             </div>
+
+            {/* Tableau mensuel des participations */}
+            {participationsMensuelles.length > 0 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mt-6">
+                    <h3 className="font-semibold text-text mb-4">Participations mensuelles - Detail</h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-text-secondary border-b border-border">
+                                    <th className="text-left py-2 px-3">Mois</th>
+                                    <th className="text-right py-2 px-3">Participations totales</th>
+                                    <th className="text-right py-2 px-3">Hommes</th>
+                                    <th className="text-right py-2 px-3">Femmes</th>
+                                    <th className="text-right py-2 px-3">Joueurs</th>
+                                    <th className="text-right py-2 px-3">Moy./joueur</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {[...participationsMensuelles].reverse().map((row) => {
+                                    const [y, mo] = row.mois.split('-');
+                                    const months = ['', 'Jan', 'Fev', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aou', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                    return (
+                                        <tr key={row.mois} className="border-b border-border/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                            <td className="py-2.5 px-3 font-medium text-text">{months[parseInt(mo)]} {y}</td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-text font-bold">{row.total_participations?.toLocaleString('fr-FR')}</td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-homme">{row.total_hommes?.toLocaleString('fr-FR')}</td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-femme">{row.total_femmes?.toLocaleString('fr-FR')}</td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-text">{row.nb_joueurs?.toLocaleString('fr-FR')}</td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-primary">{row.moyenne}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
