@@ -3,11 +3,34 @@ Padel Stats France — Database module
 SQLite schema, CRUD, and analytics queries.
 """
 import sqlite3
+import gzip
+import shutil
 import os
 from contextlib import contextmanager
 
-# DB path from env var DATABASE_PATH, fallback to local file
-DB_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "padel_stats.db"))
+_VERCEL = bool(os.environ.get("VERCEL"))
+_BACKEND_DIR = os.path.dirname(__file__)
+
+
+def _resolve_db_path() -> str:
+    """Resolve DB path, decompressing to /tmp on Vercel if needed."""
+    explicit = os.environ.get("DATABASE_PATH")
+    if explicit:
+        return explicit
+
+    if _VERCEL:
+        tmp_db = "/tmp/padel_stats.db"
+        if not os.path.exists(tmp_db):
+            gz_path = os.path.join(_BACKEND_DIR, "padel_stats.db.gz")
+            if os.path.exists(gz_path):
+                with gzip.open(gz_path, "rb") as f_in, open(tmp_db, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+        return tmp_db
+
+    return os.path.join(_BACKEND_DIR, "padel_stats.db")
+
+
+DB_PATH = _resolve_db_path()
 
 
 def get_connection():

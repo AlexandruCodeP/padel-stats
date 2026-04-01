@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # ── CORS (comma-separated list of allowed origins) ────────────────────
     # Example: "http://localhost:5173,https://padel-stats.fr"
-    cors_origins_str: str = "http://localhost:5173,http://localhost:3000,https://*.up.railway.app"
+    cors_origins_str: str = "http://localhost:5173,http://localhost:3000,https://*.up.railway.app,https://*.vercel.app"
 
     # ── JWT ───────────────────────────────────────────────────────────────
     # CHANGER ABSOLUMENT en production (générer avec : openssl rand -hex 32)

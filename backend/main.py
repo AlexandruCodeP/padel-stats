@@ -41,10 +41,12 @@ from database import (
 logger = logging.getLogger("padel.scheduler")
 logging.basicConfig(level=logging.INFO)
 
+_VERCEL = bool(os.environ.get("VERCEL"))
+
 app = FastAPI(title="Padel Stats France", version="1.0.0",
               description="API de statistiques Padel France — données FFT Ten'Up")
 
-scheduler = BackgroundScheduler(timezone="Europe/Paris")
+scheduler = None if _VERCEL else BackgroundScheduler(timezone="Europe/Paris")
 
 app.add_middleware(
     CORSMiddleware,
@@ -82,7 +84,7 @@ async def routing_middleware(request: Request, call_next):
 
 @app.get("/health")
 def health():
-    """Railway healthcheck endpoint — responds immediately."""
+    """Healthcheck endpoint — responds immediately."""
     return {"status": "ok"}
 
 
@@ -105,16 +107,17 @@ def _auto_import_month(mois_str: str | None = None):
 @app.on_event("startup")
 def startup():
     init_db()
-    # Import automatique : 1er mardi de chaque mois à 8h00 (heure Paris)
-    # day='1-7' + day_of_week='tue' = premier mardi du mois
-    scheduler.add_job(
-        _auto_import_month,
-        CronTrigger(day="1-7", day_of_week="tue", hour=8, minute=0),
-        id="monthly_import",
-        replace_existing=True,
-    )
-    scheduler.start()
-    logger.info("[Scheduler] Démarré — import automatique le 1er mardi de chaque mois à 8h00")
+    if scheduler:
+        # Import automatique : 1er mardi de chaque mois à 8h00 (heure Paris)
+        # day='1-7' + day_of_week='tue' = premier mardi du mois
+        scheduler.add_job(
+            _auto_import_month,
+            CronTrigger(day="1-7", day_of_week="tue", hour=8, minute=0),
+            id="monthly_import",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info("[Scheduler] Démarré — import automatique le 1er mardi de chaque mois à 8h00")
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────
@@ -141,6 +144,8 @@ def admin_import(mois: Optional[str] = None):
 @app.get("/admin/scheduler", dependencies=[Depends(_check_admin)], tags=["admin"])
 def admin_scheduler_info():
     """Informations sur le scheduler et le prochain import planifié."""
+    if not scheduler:
+        return {"running": False, "jobs": [], "note": "Vercel cron used instead"}
     jobs = []
     for job in scheduler.get_jobs():
         jobs.append({
@@ -148,6 +153,17 @@ def admin_scheduler_info():
             "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
         })
     return {"running": scheduler.running, "jobs": jobs}
+
+
+@app.get("/cron/import", tags=["cron"])
+def cron_import(request: Request):
+    """Vercel Cron Job endpoint — triggers monthly FFT import."""
+    auth = request.headers.get("authorization", "")
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    if cron_secret and auth != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    _auto_import_month()
+    return {"status": "ok"}
 
 
 # ── Base endpoints ────────────────────────────────────────────────────────
