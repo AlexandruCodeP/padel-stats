@@ -54,18 +54,20 @@ export const getDashboardOverview = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/dashboard/overview?${params}`);
 };
-export const getDashboardProgressions = (mois, genre, limit = 10, rang_max = null) => {
+export const getDashboardProgressions = (mois, genre, limit = 10, rang_max = null, exclude_assimiles = false) => {
     const params = new URLSearchParams({ limit });
     if (mois) params.set('mois', mois);
     if (genre) params.set('genre', genre);
     if (rang_max) params.set('rang_max', rang_max);
+    if (exclude_assimiles) params.set('exclude_assimiles', 'true');
     return fetchJSON(`/dashboard/progressions?${params}`);
 };
-export const getDashboardChutes = (mois, genre, limit = 10, rang_max = null) => {
+export const getDashboardChutes = (mois, genre, limit = 10, rang_max = null, exclude_assimiles = false) => {
     const params = new URLSearchParams({ limit });
     if (mois) params.set('mois', mois);
     if (genre) params.set('genre', genre);
     if (rang_max) params.set('rang_max', rang_max);
+    if (exclude_assimiles) params.set('exclude_assimiles', 'true');
     return fetchJSON(`/dashboard/chutes?${params}`);
 };
 export const getDashboardEvolution = (genre) => {

@@ -41,6 +41,11 @@ export default function Evolution() {
     const [evolution, setEvolution] = useState([]);
     const [progressions, setProgressions] = useState([]);
     const [chutes, setChutes] = useState([]);
+    const [progressionsH, setProgressionsH] = useState([]);
+    const [progressionsF, setProgressionsF] = useState([]);
+    const [chutesH, setChutesH] = useState([]);
+    const [chutesF, setChutesF] = useState([]);
+    const [excludeAssimiles, setExcludeAssimiles] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
@@ -50,19 +55,44 @@ export default function Evolution() {
         setLoading(true);
         const g = genre || undefined;
         const rm = rangMax ? parseInt(rangMax) : null;
-        Promise.all([
+        const ea = excludeAssimiles;
+        const baseCalls = [
             getAnalyticsDifficulte(mois, g),
             getAnalyticsInflation(g),
             getAnalyticsRecords(mois, g),
             getDashboardEvolution(g),
-            getDashboardProgressions(mois, g, 10, rm),
-            getDashboardChutes(mois, g, 10, rm),
-        ]).then(([d, inf, rec, evo, prog, ch]) => {
-            setDifficulte(d); setInflation(inf); setRecords(rec);
-            setEvolution(evo); setProgressions(prog); setChutes(ch);
-            setLoading(false);
-        });
-    }, [mois, genre, rangMax]);
+        ];
+        if (genre) {
+            // Single gender selected: one list each
+            Promise.all([
+                ...baseCalls,
+                getDashboardProgressions(mois, g, 10, rm, ea),
+                getDashboardChutes(mois, g, 10, rm, ea),
+            ]).then(([d, inf, rec, evo, prog, ch]) => {
+                setDifficulte(d); setInflation(inf); setRecords(rec);
+                setEvolution(evo); setProgressions(prog); setChutes(ch);
+                setProgressionsH([]); setProgressionsF([]);
+                setChutesH([]); setChutesF([]);
+                setLoading(false);
+            });
+        } else {
+            // "Tous" selected: fetch H and F separately
+            Promise.all([
+                ...baseCalls,
+                getDashboardProgressions(mois, 'H', 10, rm, ea),
+                getDashboardProgressions(mois, 'F', 10, rm, ea),
+                getDashboardChutes(mois, 'H', 10, rm, ea),
+                getDashboardChutes(mois, 'F', 10, rm, ea),
+            ]).then(([d, inf, rec, evo, progH, progF, chH, chF]) => {
+                setDifficulte(d); setInflation(inf); setRecords(rec);
+                setEvolution(evo);
+                setProgressions([]); setChutes([]);
+                setProgressionsH(progH); setProgressionsF(progF);
+                setChutesH(chH); setChutesF(chF);
+                setLoading(false);
+            });
+        }
+    }, [mois, genre, rangMax, excludeAssimiles]);
 
     const formatMoisLabel = (m) => {
         if (!m) return '';
@@ -110,6 +140,10 @@ export default function Evolution() {
                         className="px-3 py-2 rounded-xl border border-border text-sm bg-card text-text focus:outline-none focus:ring-2 focus:ring-primary/20">
                         {RANG_TIERS.map(t => <option key={t.val} value={t.val}>{t.label}</option>)}
                     </select>
+                    <button onClick={() => setExcludeAssimiles(v => !v)}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${excludeAssimiles ? 'bg-amber-500 text-white border-amber-500' : 'bg-card text-text-secondary border-border hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                        Hors assimilés
+                    </button>
                 </div>
             </div>
 
@@ -271,53 +305,163 @@ export default function Evolution() {
             </div>
 
             {/* Meilleures progressions + plus grosses chutes */}
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
-                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-                    <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-success" /> Top 10 progressions {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
-                    </h3>
-                    {progressions.length > 0 ? (
-                        <div className="space-y-1.5">
-                            {progressions.map((p, i) => (
-                                <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
-                                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
-                                        <div>
-                                            <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                            <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+            {genre ? (
+                /* Single gender selected */
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                        <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-success" /> Top progressions {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
+                        </h3>
+                        {progressions.length > 0 ? (
+                            <div className="space-y-1.5">
+                                {progressions.map((p, i) => (
+                                    <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
+                                        className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
+                                            <div>
+                                                <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
+                                                <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                            </div>
                                         </div>
+                                        <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
                                     </div>
-                                    <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
-                </div>
-
-                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-                    <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
-                        <TrendingDown className="w-4 h-4 text-red-500" /> Top 10 chutes {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
-                    </h3>
-                    {chutes.length > 0 ? (
-                        <div className="space-y-1.5">
-                            {chutes.map((p, i) => (
-                                <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
-                                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
-                                        <div>
-                                            <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                            <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                ))}
+                            </div>
+                        ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                    </div>
+                    <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                        <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
+                            <TrendingDown className="w-4 h-4 text-red-500" /> Top chutes {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
+                        </h3>
+                        {chutes.length > 0 ? (
+                            <div className="space-y-1.5">
+                                {chutes.map((p, i) => (
+                                    <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
+                                        className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
+                                            <div>
+                                                <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
+                                                <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                            </div>
                                         </div>
+                                        <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
                                     </div>
-                                    <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                                ))}
+                            </div>
+                        ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                    </div>
                 </div>
-            </div>
+            ) : (
+                /* "Tous" selected: split by gender */
+                <div className="space-y-6 mb-6">
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                            <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-success" />
+                                <span>Top progressions</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full border text-homme border-homme/30 bg-homme/5">Hommes</span>
+                                {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
+                            </h3>
+                            {progressionsH.length > 0 ? (
+                                <div className="space-y-1.5">
+                                    {progressionsH.map((p, i) => (
+                                        <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
+                                            className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
+                                                <div>
+                                                    <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                        </div>
+                        <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                            <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-success" />
+                                <span>Top progressions</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full border text-femme border-femme/30 bg-femme/5">Dames</span>
+                                {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
+                            </h3>
+                            {progressionsF.length > 0 ? (
+                                <div className="space-y-1.5">
+                                    {progressionsF.map((p, i) => (
+                                        <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
+                                            className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
+                                                <div>
+                                                    <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                        </div>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                            <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
+                                <TrendingDown className="w-4 h-4 text-red-500" />
+                                <span>Top chutes</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full border text-homme border-homme/30 bg-homme/5">Hommes</span>
+                                {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
+                            </h3>
+                            {chutesH.length > 0 ? (
+                                <div className="space-y-1.5">
+                                    {chutesH.map((p, i) => (
+                                        <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
+                                            className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
+                                                <div>
+                                                    <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                        </div>
+                        <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                            <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
+                                <TrendingDown className="w-4 h-4 text-red-500" />
+                                <span>Top chutes</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full border text-femme border-femme/30 bg-femme/5">Dames</span>
+                                {rangMax ? <span className="text-xs font-normal text-text-secondary bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Top {rangMax}</span> : ''}
+                            </h3>
+                            {chutesF.length > 0 ? (
+                                <div className="space-y-1.5">
+                                    {chutesF.map((p, i) => (
+                                        <div key={p.id || i} onClick={() => navigate(`/joueur/${p.id}`)}
+                                            className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
+                                                <div>
+                                                    <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-text-secondary text-sm text-center py-6">Pas de donnees</p>}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

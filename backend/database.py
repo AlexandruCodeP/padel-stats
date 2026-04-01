@@ -395,7 +395,7 @@ def dashboard_overview(conn, mois=None, genre=None):
     }
 
 
-def dashboard_progressions(conn, mois=None, genre=None, limit=10, rang_max=None):
+def dashboard_progressions(conn, mois=None, genre=None, limit=10, rang_max=None, exclude_assimiles=False):
     if not mois:
         mois = get_dernier_mois(conn)
     if not mois:
@@ -404,18 +404,19 @@ def dashboard_progressions(conn, mois=None, genre=None, limit=10, rang_max=None)
     gp = [genre] if genre else []
     rf = "AND c.rang <= ?" if rang_max else ""
     rp = [rang_max] if rang_max else []
+    af = "AND c.est_assimile=0" if exclude_assimiles else ""
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
-              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf} {rf}
+              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf} {rf} {af}
             ORDER BY CAST(REPLACE(c.evolution,'+','') AS INTEGER) DESC LIMIT ?""",
         [mois] + gp + rp + [limit],
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def dashboard_chutes(conn, mois=None, genre=None, limit=10, rang_max=None):
+def dashboard_chutes(conn, mois=None, genre=None, limit=10, rang_max=None, exclude_assimiles=False):
     if not mois:
         mois = get_dernier_mois(conn)
     if not mois:
@@ -424,12 +425,13 @@ def dashboard_chutes(conn, mois=None, genre=None, limit=10, rang_max=None):
     gp = [genre] if genre else []
     rf = "AND c.rang <= ?" if rang_max else ""
     rp = [rang_max] if rang_max else []
+    af = "AND c.est_assimile=0" if exclude_assimiles else ""
     rows = conn.execute(
         f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
               AND CAST(REPLACE(c.evolution,'-','') AS INTEGER) > 0
-              AND c.evolution LIKE '-%' {gf} {rf}
+              AND c.evolution LIKE '-%' {gf} {rf} {af}
             ORDER BY CAST(REPLACE(c.evolution,'-','') AS INTEGER) DESC LIMIT ?""",
         [mois] + gp + rp + [limit],
     ).fetchall()

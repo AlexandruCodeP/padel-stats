@@ -262,15 +262,15 @@ def dash_overview(mois: Optional[str] = None, genre: Optional[str] = None):
 
 
 @app.get("/dashboard/progressions")
-def dash_progressions(mois: Optional[str] = None, genre: Optional[str] = None, limit: int = 10, rang_max: Optional[int] = None):
+def dash_progressions(mois: Optional[str] = None, genre: Optional[str] = None, limit: int = 10, rang_max: Optional[int] = None, exclude_assimiles: bool = False):
     with get_db() as conn:
-        return dashboard_progressions(conn, mois, genre, limit, rang_max)
+        return dashboard_progressions(conn, mois, genre, limit, rang_max, exclude_assimiles)
 
 
 @app.get("/dashboard/chutes")
-def dash_chutes(mois: Optional[str] = None, genre: Optional[str] = None, limit: int = 10, rang_max: Optional[int] = None):
+def dash_chutes(mois: Optional[str] = None, genre: Optional[str] = None, limit: int = 10, rang_max: Optional[int] = None, exclude_assimiles: bool = False):
     with get_db() as conn:
-        return dashboard_chutes(conn, mois, genre, limit, rang_max)
+        return dashboard_chutes(conn, mois, genre, limit, rang_max, exclude_assimiles)
 
 
 @app.get("/dashboard/evolution-mensuelle")

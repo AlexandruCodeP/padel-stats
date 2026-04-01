@@ -49,6 +49,11 @@ export default function Dashboard() {
     const [overview, setOverview] = useState(null);
     const [progressions, setProgressions] = useState([]);
     const [chutes, setChutes] = useState([]);
+    const [progressionsH, setProgressionsH] = useState([]);
+    const [progressionsF, setProgressionsF] = useState([]);
+    const [chutesH, setChutesH] = useState([]);
+    const [chutesF, setChutesF] = useState([]);
+    const [excludeAssimiles, setExcludeAssimiles] = useState(false);
     const [evolution, setEvolution] = useState([]);
     const [ages, setAges] = useState([]);
     const [ligues, setLigues] = useState([]);
@@ -78,17 +83,34 @@ export default function Dashboard() {
         });
     }, [mois, genre]);
 
+    // Progressions & chutes: split by gender when "Tous", with rangMax + assimilés filter
     useEffect(() => {
         if (!mois) return;
         const g = genre || undefined;
         const rm = rangMax === 0 ? null : rangMax;
-        Promise.all([
-            getDashboardProgressions(mois, g, 10, rm),
-            getDashboardChutes(mois, g, 10, rm),
-        ]).then(([p, c]) => {
-            setProgressions(p); setChutes(c);
-        });
-    }, [mois, genre, rangMax]);
+        const ea = excludeAssimiles;
+        if (genre) {
+            Promise.all([
+                getDashboardProgressions(mois, g, 10, rm, ea),
+                getDashboardChutes(mois, g, 10, rm, ea),
+            ]).then(([p, c]) => {
+                setProgressions(p); setChutes(c);
+                setProgressionsH([]); setProgressionsF([]);
+                setChutesH([]); setChutesF([]);
+            });
+        } else {
+            Promise.all([
+                getDashboardProgressions(mois, 'H', 10, rm, ea),
+                getDashboardProgressions(mois, 'F', 10, rm, ea),
+                getDashboardChutes(mois, 'H', 10, rm, ea),
+                getDashboardChutes(mois, 'F', 10, rm, ea),
+            ]).then(([progH, progF, chH, chF]) => {
+                setProgressions([]); setChutes([]);
+                setProgressionsH(progH); setProgressionsF(progF);
+                setChutesH(chH); setChutesF(chF);
+            });
+        }
+    }, [mois, genre, rangMax, excludeAssimiles]);
 
     const formatMoisLabel = (m) => {
         if (!m) return '';
@@ -138,6 +160,16 @@ export default function Dashboard() {
                             </button>
                         ))}
                     </div>
+                    <button onClick={() => setExcludeAssimiles(v => !v)}
+                        className="px-3 py-2 text-sm font-medium border transition-all duration-200"
+                        style={{
+                            borderRadius: '12px',
+                            ...(excludeAssimiles
+                                ? { backgroundColor: '#f59e0b', color: '#fff', borderColor: '#f59e0b' }
+                                : { backgroundColor: 'white', color: '#64748B', borderColor: '#e2e8f0' })
+                        }}>
+                        Hors assimilés
+                    </button>
                 </div>
             </div>
 
@@ -161,7 +193,8 @@ export default function Dashboard() {
             <div className="grid md:grid-cols-2 gap-6 mb-6">
                 {overview?.distribution && (
                     <div className="bg-card border border-border p-5 shadow-sm" style={CARD_STYLE}>
-                        <h3 className="font-semibold text-text mb-4 tracking-tight">Distribution par points</h3>
+                        <h3 className="font-semibold text-text mb-1 tracking-tight">Distribution par points</h3>
+                        <p className="text-xs text-text-secondary mb-4">Nombre de joueurs classés par tranche de points FFT</p>
                         <ResponsiveContainer width="100%" height={250}>
                             <BarChart data={overview.distribution} layout="vertical" margin={{ left: 10 }}>
                                 <XAxis type="number" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -261,49 +294,61 @@ export default function Dashboard() {
                         ))}
                     </div>
 
-                    <div className="bg-card border border-border p-5 shadow-sm" style={CARD_STYLE}>
-                        <h3 className="font-semibold text-text mb-3 flex items-center gap-2 tracking-tight">
-                            <TrendingUp className="w-4 h-4 text-success" /> Top progressions
-                        </h3>
-                        <div className="space-y-1">
-                            {progressions.slice(0, 5).map((j, i) => (
-                                <div key={i} onClick={() => navigate(`/joueur/${j.id}`)}
-                                    className="flex items-center justify-between p-2.5 cursor-pointer transition-all duration-200 hover:bg-slate-50"
-                                    style={{ borderRadius: '10px' }}>
-                                    <div>
-                                        <span className="font-medium text-sm text-text">{j.prenom} {j.nom}</span>
-                                        <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang}</span>
+                    {(genre ? [{ list: progressions, label: 'Top progressions', badge: null }] : [
+                        { list: progressionsH, label: 'Top progressions', badge: { text: 'Hommes', cls: 'text-homme border-homme/30 bg-homme/5' } },
+                        { list: progressionsF, label: 'Top progressions', badge: { text: 'Dames', cls: 'text-femme border-femme/30 bg-femme/5' } },
+                    ]).map(({ list, label, badge }, idx) => (
+                        <div key={`prog-${idx}`} className="bg-card border border-border p-5 shadow-sm" style={CARD_STYLE}>
+                            <h3 className="font-semibold text-text mb-3 flex items-center gap-2 tracking-tight">
+                                <TrendingUp className="w-4 h-4 text-success" /> {label}
+                                {badge && <span className={`text-xs px-2 py-0.5 rounded-full border ${badge.cls}`}>{badge.text}</span>}
+                            </h3>
+                            <div className="space-y-1">
+                                {list.slice(0, 5).map((j, i) => (
+                                    <div key={i} onClick={() => navigate(`/joueur/${j.id}`)}
+                                        className="flex items-center justify-between p-2.5 cursor-pointer transition-all duration-200 hover:bg-slate-50"
+                                        style={{ borderRadius: '10px' }}>
+                                        <div>
+                                            <span className="font-medium text-sm text-text">{j.prenom} {j.nom}</span>
+                                            <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang}</span>
+                                        </div>
+                                        <span className="text-xs font-bold px-2 py-0.5 font-data"
+                                            style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: '#10B981', borderRadius: '999px' }}>
+                                            {j.evolution}
+                                        </span>
                                     </div>
-                                    <span className="text-xs font-bold px-2 py-0.5 font-data"
-                                        style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: '#10B981', borderRadius: '999px' }}>
-                                        {j.evolution}
-                                    </span>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    ))}
 
-                    <div className="bg-card border border-border p-5 shadow-sm" style={CARD_STYLE}>
-                        <h3 className="font-semibold text-text mb-3 flex items-center gap-2 tracking-tight">
-                            <TrendingDown className="w-4 h-4 text-danger" /> Top chutes
-                        </h3>
-                        <div className="space-y-1">
-                            {chutes.slice(0, 5).map((j, i) => (
-                                <div key={i} onClick={() => navigate(`/joueur/${j.id}`)}
-                                    className="flex items-center justify-between p-2.5 cursor-pointer transition-all duration-200 hover:bg-slate-50"
-                                    style={{ borderRadius: '10px' }}>
-                                    <div>
-                                        <span className="font-medium text-sm text-text">{j.prenom} {j.nom}</span>
-                                        <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang}</span>
+                    {(genre ? [{ list: chutes, label: 'Top chutes', badge: null }] : [
+                        { list: chutesH, label: 'Top chutes', badge: { text: 'Hommes', cls: 'text-homme border-homme/30 bg-homme/5' } },
+                        { list: chutesF, label: 'Top chutes', badge: { text: 'Dames', cls: 'text-femme border-femme/30 bg-femme/5' } },
+                    ]).map(({ list, label, badge }, idx) => (
+                        <div key={`chute-${idx}`} className="bg-card border border-border p-5 shadow-sm" style={CARD_STYLE}>
+                            <h3 className="font-semibold text-text mb-3 flex items-center gap-2 tracking-tight">
+                                <TrendingDown className="w-4 h-4 text-danger" /> {label}
+                                {badge && <span className={`text-xs px-2 py-0.5 rounded-full border ${badge.cls}`}>{badge.text}</span>}
+                            </h3>
+                            <div className="space-y-1">
+                                {list.slice(0, 5).map((j, i) => (
+                                    <div key={i} onClick={() => navigate(`/joueur/${j.id}`)}
+                                        className="flex items-center justify-between p-2.5 cursor-pointer transition-all duration-200 hover:bg-slate-50"
+                                        style={{ borderRadius: '10px' }}>
+                                        <div>
+                                            <span className="font-medium text-sm text-text">{j.prenom} {j.nom}</span>
+                                            <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang}</span>
+                                        </div>
+                                        <span className="text-xs font-bold px-2 py-0.5 font-data"
+                                            style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#EF4444', borderRadius: '999px' }}>
+                                            {j.evolution}
+                                        </span>
                                     </div>
-                                    <span className="text-xs font-bold px-2 py-0.5 font-data"
-                                        style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#EF4444', borderRadius: '999px' }}>
-                                        {j.evolution}
-                                    </span>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    ))}
                 </div>
             </div>
         </div>
