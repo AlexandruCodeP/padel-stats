@@ -98,10 +98,10 @@ export default function Clubs() {
             <div className="bg-card rounded-xl border border-border p-5 shadow-sm mb-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                     <h3 className="font-semibold text-text flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-primary" /> Top {topN === 0 ? 'tous les' : topN} clubs par nombre de joueurs
+                        <Building2 className="w-4 h-4 text-primary" /> Top {topN} clubs par nombre de joueurs
                     </h3>
                     <div className="flex rounded-xl border border-border overflow-hidden">
-                        {[{ val: 20, label: 'Top 20' }, { val: 50, label: 'Top 50' }, { val: 100, label: 'Top 100' }, { val: 0, label: 'Tous' }].map(opt => (
+                        {[{ val: 20, label: 'Top 20' }, { val: 50, label: 'Top 50' }, { val: 100, label: 'Top 100' }, { val: 200, label: 'Top 200' }].map(opt => (
                             <button key={opt.val} onClick={() => setTopN(opt.val)}
                                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${topN === opt.val ? 'bg-primary text-white' : 'bg-white dark:bg-slate-800 text-text-secondary hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                                 {opt.label}
@@ -109,8 +109,8 @@ export default function Clubs() {
                         ))}
                     </div>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(400, (topN === 0 ? clubs.length : Math.min(topN, clubs.length)) * 22 + 20)}>
-                    <BarChart data={clubs.slice(0, topN === 0 ? clubs.length : topN)} layout="vertical" margin={{ left: 10, right: 60 }}>
+                <ResponsiveContainer width="100%" height={Math.max(400, Math.min(topN, clubs.length) * 22 + 20)}>
+                    <BarChart data={clubs.slice(0, topN)} layout="vertical" margin={{ left: 10, right: 60 }}>
                         <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                         <YAxis type="category" dataKey="club" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={180} />
                         <Tooltip content={({ active, payload }) => {

@@ -1222,7 +1222,7 @@ def analytics_clubs_tableau(conn, mois=None, genre=None):
                   c.ligue
            FROM classements c JOIN joueurs j ON j.id=c.joueur_id
            WHERE {w}
-           GROUP BY c.club ORDER BY total DESC LIMIT 200""",
+           GROUP BY c.club ORDER BY total DESC""",
         params,
     ).fetchall()
     result = []
