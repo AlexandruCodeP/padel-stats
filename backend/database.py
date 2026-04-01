@@ -626,6 +626,35 @@ def analytics_frequence_tournois(conn, mois=None, genre=None):
     return result
 
 
+def analytics_participations_mensuelles(conn, genre=None):
+    """Monthly tournament participation stats over all available months.
+
+    Returns for each month:
+    - mois: the month (YYYY-MM)
+    - total_participations: sum of nb_tournois across all players
+    - nb_joueurs: number of ranked players
+    - moyenne: average nb_tournois per player
+    - total_hommes / total_femmes: breakdown by gender
+    """
+    gf = "AND c.genre=?" if genre else ""
+    gp = [genre] if genre else []
+    rows = conn.execute(
+        f"""SELECT c.mois,
+                   SUM(c.nb_tournois) as total_participations,
+                   COUNT(*) as nb_joueurs,
+                   ROUND(AVG(c.nb_tournois), 1) as moyenne,
+                   SUM(CASE WHEN c.genre='H' THEN c.nb_tournois ELSE 0 END) as total_hommes,
+                   SUM(CASE WHEN c.genre='F' THEN c.nb_tournois ELSE 0 END) as total_femmes
+            FROM classements c
+            JOIN joueurs j ON j.id=c.joueur_id
+            WHERE 1=1 {gf}
+            GROUP BY c.mois
+            ORDER BY c.mois""",
+        gp,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def analytics_profil_type(conn, mois=None, top=100, genre=None):
     if not mois:
         mois = get_dernier_mois(conn)

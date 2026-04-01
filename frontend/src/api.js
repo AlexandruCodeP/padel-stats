@@ -122,6 +122,11 @@ export const getAnalyticsFrequence = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/analytics/frequence-tournois?${params}`);
 };
+export const getAnalyticsParticipationsMensuelles = (genre) => {
+    const params = new URLSearchParams();
+    if (genre) params.set('genre', genre);
+    return fetchJSON(`/analytics/participations-mensuelles?${params}`);
+};
 export const getAnalyticsProfil = (mois, top, genre) => {
     const params = new URLSearchParams({ top });
     if (mois) params.set('mois', mois);

@@ -25,7 +25,7 @@ from database import (
     dashboard_evolution_mensuelle, dashboard_ages, dashboard_ligues,
     analytics_numero_un, analytics_difficulte_progression,
     analytics_inflation_points, analytics_nationalites_par_niveau,
-    analytics_age_par_niveau, analytics_frequence_tournois,
+    analytics_age_par_niveau, analytics_frequence_tournois, analytics_participations_mensuelles,
     analytics_profil_type,
     analytics_competitivite_ligue, analytics_participation_feminine,
     analytics_predictions, analytics_records,
@@ -327,6 +327,12 @@ def ana_age(mois: Optional[str] = None, genre: Optional[str] = None):
 def ana_frequence(mois: Optional[str] = None, genre: Optional[str] = None):
     with get_db() as conn:
         return analytics_frequence_tournois(conn, mois, genre)
+
+
+@app.get("/analytics/participations-mensuelles")
+def ana_participations_mensuelles(genre: Optional[str] = None):
+    with get_db() as conn:
+        return analytics_participations_mensuelles(conn, genre)
 
 
 @app.get("/analytics/profil-type")
