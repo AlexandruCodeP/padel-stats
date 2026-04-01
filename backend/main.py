@@ -157,11 +157,15 @@ def admin_scheduler_info():
 
 @app.get("/cron/import", tags=["cron"])
 def cron_import(request: Request):
-    """Vercel Cron Job endpoint — triggers monthly FFT import."""
+    """Vercel Cron Job endpoint — triggers monthly FFT import on first Tuesday."""
     auth = request.headers.get("authorization", "")
     cron_secret = os.environ.get("CRON_SECRET", "")
     if cron_secret and auth != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
+    # Only run on the first Tuesday of the month (day 1-7)
+    today = datetime.date.today()
+    if today.day > 7:
+        return {"status": "skipped", "reason": "Not first Tuesday of month"}
     _auto_import_month()
     return {"status": "ok"}
 
