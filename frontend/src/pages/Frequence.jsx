@@ -63,7 +63,7 @@ export default function Frequence() {
     if (loading) return (
         <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-            <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
             <div className="grid md:grid-cols-2 gap-6">{[...Array(2)].map((_, i) => <div key={i} className="h-64 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
         </div>
     );
@@ -94,22 +94,22 @@ export default function Frequence() {
             </div>
 
             {/* KPI Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Users className="w-3.5 h-3.5" /> Total competiteurs</div>
-                    <div className="text-2xl font-bold text-text font-data">{total.toLocaleString('fr-FR')}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
+                    <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Users className="w-3.5 h-3.5" /> <span className="truncate">Total competiteurs</span></div>
+                    <div className="text-xl sm:text-2xl font-bold text-text font-data">{total.toLocaleString('fr-FR')}</div>
                 </div>
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Repeat className="w-3.5 h-3.5" /> Tournois moy. (tous)</div>
-                    <div className="text-2xl font-bold text-text font-data">{profilAll?.avg_tournois ?? '-'}</div>
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
+                    <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Repeat className="w-3.5 h-3.5" /> <span className="truncate">Tournois moy.</span></div>
+                    <div className="text-xl sm:text-2xl font-bold text-text font-data">{profilAll?.avg_tournois ?? '-'}</div>
                 </div>
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1">Tournois moy. Top 100</div>
-                    <div className="text-2xl font-bold text-primary font-data">{profil100?.avg_tournois ?? '-'}</div>
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
+                    <div className="text-xs text-text-secondary mb-1 truncate">Tournois moy. Top 100</div>
+                    <div className="text-xl sm:text-2xl font-bold text-primary font-data">{profil100?.avg_tournois ?? '-'}</div>
                 </div>
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1">Tournois moy. Top 1 000</div>
-                    <div className="text-2xl font-bold text-primary font-data">{profil1000?.avg_tournois ?? '-'}</div>
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
+                    <div className="text-xs text-text-secondary mb-1 truncate">Tournois moy. Top 1000</div>
+                    <div className="text-xl sm:text-2xl font-bold text-primary font-data">{profil1000?.avg_tournois ?? '-'}</div>
                 </div>
             </div>
 

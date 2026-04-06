@@ -404,7 +404,7 @@ export default function Analytics() {
                         <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                             <h3 className="font-semibold text-text mb-1">Participation féminine</h3>
                             <p className="text-xs text-text-secondary mb-3">Évolution du ratio femmes/total par mois</p>
-                            <div className="grid grid-cols-3 gap-3 mb-4">
+                            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
                                 {(() => {
                                     const latest = feminine[feminine.length - 1];
                                     const first = feminine[0];

@@ -282,7 +282,7 @@ export default function ComparaisonMois() {
 
             {loading && (
                 <div className="animate-pulse space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                         {[1,2,3].map(i => <div key={i} className="bg-card border border-border rounded-2xl h-28" />)}
                     </div>
                     <div className="bg-card border border-border rounded-2xl h-64" />

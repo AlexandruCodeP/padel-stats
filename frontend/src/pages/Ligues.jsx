@@ -84,7 +84,7 @@ export default function LiguesPage() {
             </div>
 
             {stats && (
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
                     <KPICard icon={Users} title="Total" value={stats.total_joueurs} color="primary" />
                     <KPICard icon={User} title="Hommes" value={stats.hommes} color="homme" />
                     <KPICard icon={User} title="Femmes" value={stats.femmes} color="femme" />

@@ -64,7 +64,7 @@ export default function Nationalites() {
     if (loading) return (
         <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-            <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
             <div className="grid md:grid-cols-2 gap-6">{[...Array(4)].map((_, i) => <div key={i} className="h-64 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
         </div>
     );
@@ -109,25 +109,25 @@ export default function Nationalites() {
             </div>
 
             {/* KPIs: % francais par niveau */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
                     <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1"><Flag className="w-3.5 h-3.5" /> Nat. dominante</div>
-                    <div className="text-xl font-bold text-text font-data">{currentProfil?.nationalite_principale || 'FRA'}</div>
+                    <div className="text-lg sm:text-xl font-bold text-text font-data">{currentProfil?.nationalite_principale || 'FRA'}</div>
                     <div className="text-xs text-text-secondary">{top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</div>
                 </div>
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
                     <div className="text-xs text-text-secondary mb-1">% Francais</div>
-                    <div className="text-xl font-bold text-primary font-data">{frPct(currentData)}%</div>
+                    <div className="text-lg sm:text-xl font-bold text-primary font-data">{frPct(currentData)}%</div>
                     <div className="text-xs text-text-secondary">{(currentData.find(n => n.nationalite === 'FRA')?.count || 0).toLocaleString('fr-FR')} joueurs</div>
                 </div>
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
                     <div className="text-xs text-text-secondary mb-1">Total joueurs</div>
-                    <div className="text-xl font-bold text-text font-data">{total.toLocaleString('fr-FR')}</div>
+                    <div className="text-lg sm:text-xl font-bold text-text font-data">{total.toLocaleString('fr-FR')}</div>
                     <div className="text-xs text-text-secondary">{top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</div>
                 </div>
-                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
-                    <div className="text-xs text-text-secondary mb-1">Nationalites representees</div>
-                    <div className="text-xl font-bold text-text font-data">{currentData.length}</div>
+                <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
+                    <div className="text-xs text-text-secondary mb-1 truncate">Nationalites</div>
+                    <div className="text-lg sm:text-xl font-bold text-text font-data">{currentData.length}</div>
                     <div className="text-xs text-text-secondary">{top >= 999999 ? 'Tous' : `Top ${top.toLocaleString('fr-FR')}`}</div>
                 </div>
             </div>

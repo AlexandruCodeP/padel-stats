@@ -75,7 +75,7 @@ export default function Age() {
     if (loading) return (
         <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-            <div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
             <div className="grid md:grid-cols-2 gap-6">{[...Array(2)].map((_, i) => <div key={i} className="h-64 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
         </div>
     );
@@ -104,19 +104,19 @@ export default function Age() {
             </div>
 
             {/* KPI Row — ages moyens par niveau */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
                 {[
                     { label: 'Tous les classes', value: profilAll?.avg_age, total: profilAll?.total, icon: Users },
                     { label: 'Top 10', value: profil10?.avg_age, total: profil10?.total },
                     { label: 'Top 100', value: profil100?.avg_age, total: profil100?.total },
                     { label: 'Top 1 000', value: profil1000?.avg_age, total: profil1000?.total },
                 ].map(({ label, value, total, icon: Icon }) => (
-                    <div key={label} className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
+                    <div key={label} className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
                         <div className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1">
                             {Icon && <Icon className="w-3.5 h-3.5" />}
-                            {label}
+                            <span className="truncate">{label}</span>
                         </div>
-                        <div className="text-2xl font-bold text-text font-data">{value ?? '-'} <span className="text-sm font-normal text-text-secondary">ans</span></div>
+                        <div className="text-xl sm:text-2xl font-bold text-text font-data">{value ?? '-'} <span className="text-xs sm:text-sm font-normal text-text-secondary">ans</span></div>
                         <div className="text-xs text-text-secondary mt-0.5">{total?.toLocaleString('fr-FR')} joueurs</div>
                     </div>
                 ))}
@@ -127,16 +127,16 @@ export default function Age() {
                 <h3 className="font-semibold text-text mb-4 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary" /> Comparaison Hommes / Femmes
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {[
                         { label: 'Age moy. H (tous)', value: profilAllH?.avg_age, color: 'text-homme' },
                         { label: 'Age moy. F (tous)', value: profilAllF?.avg_age, color: 'text-femme' },
                         { label: 'Age moy. H (Top 100)', value: profil100H?.avg_age, color: 'text-homme' },
                         { label: 'Age moy. F (Top 100)', value: profil100F?.avg_age, color: 'text-femme' },
                     ].map(({ label, value, color }) => (
-                        <div key={label} className="bg-card/80 rounded-xl p-4 text-center">
-                            <div className="text-xs text-text-secondary mb-1">{label}</div>
-                            <div className={`text-2xl font-bold font-data ${color}`}>{value ?? '-'} <span className="text-sm font-normal text-text-secondary">ans</span></div>
+                        <div key={label} className="bg-card/80 rounded-xl p-3 sm:p-4 text-center min-w-0">
+                            <div className="text-xs text-text-secondary mb-1 truncate">{label}</div>
+                            <div className={`text-xl sm:text-2xl font-bold font-data ${color}`}>{value ?? '-'} <span className="text-xs sm:text-sm font-normal text-text-secondary">ans</span></div>
                             {profilAllH?.avg_age && profilAllF?.avg_age && label.includes('tous') && label.includes('F') && (
                                 <div className="text-xs text-text-secondary mt-1">
                                     Ecart: {Math.abs(profilAllH.avg_age - profilAllF.avg_age).toFixed(1)} ans

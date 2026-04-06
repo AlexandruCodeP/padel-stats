@@ -57,7 +57,7 @@ export default function Points() {
     if (loading) return (
         <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-            <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-200 dark:bg-gray-700 rounded-2xl" />)}</div>
             <div className="h-80 bg-gray-200 dark:bg-gray-700 rounded-2xl" />
         </div>
     );
@@ -97,11 +97,11 @@ export default function Points() {
             </div>
 
             {/* KPI: Points moyens par Top */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
                 {tops.map(t => (
-                    <div key={t} className="bg-card rounded-2xl border border-border p-4 shadow-sm text-center">
+                    <div key={t} className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-sm text-center min-w-0">
                         <div className="text-xs text-text-secondary mb-1">Top {t.toLocaleString('fr-FR')}</div>
-                        <div className="text-xl font-bold text-text font-data">{profils[t]?.avg_points?.toLocaleString('fr-FR') ?? '-'}</div>
+                        <div className="text-lg sm:text-xl font-bold text-text font-data">{profils[t]?.avg_points?.toLocaleString('fr-FR') ?? '-'}</div>
                         <div className="text-xs text-text-secondary mt-0.5">pts moy.</div>
                     </div>
                 ))}
@@ -114,7 +114,7 @@ export default function Points() {
                         <TrendingUp className="w-4 h-4 text-primary" /> Evolution annuelle des seuils
                     </h3>
                     <p className="text-xs text-text-secondary mb-4">Points pour atteindre chaque rang : {formatMoisLabel(yearAgoInflation.mois)} vs {formatMoisLabel(latestInflation.mois)}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                         {[
                             { label: '~#1', key: 'rang_1', color: '#ef4444' },
                             { label: '~#10', key: 'rang_10', color: '#f59e0b' },
@@ -126,9 +126,9 @@ export default function Points() {
                             const delta = now && then ? now - then : null;
                             const pct = then && delta ? ((delta / then) * 100).toFixed(1) : null;
                             return (
-                                <div key={label} className="bg-card/80 rounded-xl p-4 text-center">
+                                <div key={label} className="bg-card/80 rounded-xl p-3 sm:p-4 text-center min-w-0">
                                     <div className="text-xs font-semibold mb-1" style={{ color }}>{label}</div>
-                                    <div className="text-lg font-bold text-text font-data">{now?.toLocaleString('fr-FR') ?? '-'} <span className="text-xs text-text-secondary">pts</span></div>
+                                    <div className="text-base sm:text-lg font-bold text-text font-data">{now?.toLocaleString('fr-FR') ?? '-'} <span className="text-xs text-text-secondary">pts</span></div>
                                     <div className="text-xs text-text-secondary">avant: {then?.toLocaleString('fr-FR') ?? '-'}</div>
                                     {delta !== null && (
                                         <div className={`text-xs font-medium mt-1 flex items-center justify-center gap-0.5 ${delta >= 0 ? 'text-success' : 'text-red-500'}`}>

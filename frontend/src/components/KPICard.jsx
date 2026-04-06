@@ -47,14 +47,14 @@ export default function KPICard({ icon: Icon, title, value, delta, pct, sparkDat
 
     return (
         <div
-            className="bg-card border border-border p-5 transition-all duration-200 hover:-translate-y-0.5"
+            className="bg-card border border-border p-3 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 min-w-0"
             style={{ borderRadius: '16px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.07)' }}
             onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 10px 20px -6px rgb(0 0 0 / 0.12)'; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 6px -1px rgb(0 0 0 / 0.07)'; }}
         >
             {/* Header: title + icon */}
             <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-text-secondary">{title}</span>
+                <span className="text-xs sm:text-sm font-medium text-text-secondary truncate">{title}</span>
                 {Icon && (
                     <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${c.grad} ${c.text} flex items-center justify-center shrink-0`}>
                         <Icon className="w-4.5 h-4.5" />
@@ -65,7 +65,7 @@ export default function KPICard({ icon: Icon, title, value, delta, pct, sparkDat
             {/* Value + sparkline */}
             <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                    <div className="text-2xl font-bold text-text font-data tracking-tight leading-none">
+                    <div className="text-xl sm:text-2xl font-bold text-text font-data tracking-tight leading-none">
                         {typeof value === 'number' ? value.toLocaleString('fr-FR') : value}
                     </div>
 

@@ -137,7 +137,7 @@ export default function Tendances() {
                             const prev = feminine.length >= 2 ? feminine[feminine.length - 2] : null;
                             const deltaPct = prev ? (latest.pct_femmes - prev.pct_femmes).toFixed(2) : null;
                             return (
-                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
                                     <div className="text-center p-3 bg-femme/10 rounded-xl">
                                         <div className="text-xl font-bold text-femme">{latest.pct_femmes}%</div>
                                         <div className="text-xs text-text-secondary">Femmes</div>
@@ -209,7 +209,7 @@ export default function Tendances() {
                             const prev = assimiles.length >= 2 ? assimiles[assimiles.length - 2] : null;
                             const delta = prev ? latest.assimiles - prev.assimiles : null;
                             return (
-                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
                                     <div className="text-center p-3 bg-amber-500/10 rounded-xl">
                                         <div className="text-xl font-bold text-amber-600">{latest.assimiles.toLocaleString('fr-FR')}</div>
                                         <div className="text-xs text-text-secondary">Assimilés</div>
