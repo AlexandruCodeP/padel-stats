@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe } from 'lucide-react';
-import { getStats, getMois, getClassement, getClassementExport } from '../api';
+import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { getStats, getMois, getClassement, getClassementExport, triggerImport } from '../api';
 import KPICard from '../components/KPICard';
 import PlayerCard from '../components/PlayerCard';
 import PdfWorker from '../workers/pdfExport.worker.js?worker';
@@ -17,6 +17,11 @@ export default function Classement() {
     const [exporting, setExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState('');
     const workerRef = useRef(null);
+
+    const [importing, setImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState('');
+    const [importStatus, setImportStatus] = useState(null); // 'done' | 'error' | 'already' | null
+    const importStatusTimer = useRef(null);
 
     useEffect(() => {
         Promise.all([getStats(), getMois()]).then(([s, m]) => {
@@ -106,6 +111,80 @@ export default function Classement() {
         }
     };
 
+    const importData = async () => {
+        if (importStatusTimer.current) clearTimeout(importStatusTimer.current);
+        setImporting(true);
+        setImportStatus(null);
+        setImportProgress('Vérification des données...');
+        const BASE = import.meta.env.VITE_API_BASE || '/api';
+
+        try {
+            const result = await triggerImport(mois);
+
+            if (result.status === 'already_imported') {
+                setImportProgress(`Données déjà à jour (${result.count.toLocaleString('fr-FR')} joueurs)`);
+                setImportStatus('already');
+                setImporting(false);
+                importStatusTimer.current = setTimeout(() => {
+                    setImportProgress('');
+                    setImportStatus(null);
+                }, 4000);
+                return;
+            }
+
+            // Start SSE stream for progress
+            const eventSource = new EventSource(`${BASE}/import/progress/${result.task_id}`);
+
+            eventSource.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'progress') {
+                    setImportProgress(msg.message);
+                } else if (msg.type === 'done') {
+                    setImportProgress(msg.message);
+                    setImportStatus('done');
+                    setImporting(false);
+                    eventSource.close();
+                    // Refresh stats, month list, and classement
+                    Promise.all([getStats(), getMois()]).then(([s, m]) => {
+                        setStats(s);
+                        setMoisList(m);
+                        const newMois = result.mois;
+                        setMois(newMois);
+                        setPage(0);
+                    });
+                    importStatusTimer.current = setTimeout(() => {
+                        setImportProgress('');
+                        setImportStatus(null);
+                    }, 5000);
+                } else if (msg.type === 'error') {
+                    setImportProgress(`Erreur : ${msg.message}`);
+                    setImportStatus('error');
+                    setImporting(false);
+                    eventSource.close();
+                    importStatusTimer.current = setTimeout(() => {
+                        setImportProgress('');
+                        setImportStatus(null);
+                    }, 6000);
+                }
+            };
+
+            eventSource.onerror = () => {
+                setImportProgress("Connexion perdue, vérifiez les logs.");
+                setImportStatus('error');
+                setImporting(false);
+                eventSource.close();
+            };
+        } catch (err) {
+            setImportProgress(`Erreur : ${err.message}`);
+            setImportStatus('error');
+            setImporting(false);
+            importStatusTimer.current = setTimeout(() => {
+                setImportProgress('');
+                setImportStatus(null);
+            }, 6000);
+        }
+    };
+
     return (
         <div>
             {/* Hero header */}
@@ -164,6 +243,47 @@ export default function Classement() {
                     >
                         <Globe size={15} />
                         FIP
+                    </button>
+
+                    <button
+                        onClick={importData}
+                        disabled={importing || exporting}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border ${
+                            importStatus === 'done'
+                                ? 'bg-emerald-500 text-white border-emerald-500'
+                                : importStatus === 'already'
+                                ? 'bg-sky-500 text-white border-sky-500'
+                                : importStatus === 'error'
+                                ? 'bg-red-500 text-white border-red-500'
+                                : 'bg-white text-text-secondary border-border hover:bg-gray-50'
+                        }`}
+                    >
+                        {importing ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                <span className="max-w-[220px] truncate">{importProgress || 'Import en cours...'}</span>
+                            </>
+                        ) : importStatus === 'done' ? (
+                            <>
+                                <CheckCircle size={16} />
+                                <span className="max-w-[220px] truncate">{importProgress}</span>
+                            </>
+                        ) : importStatus === 'already' ? (
+                            <>
+                                <CheckCircle size={16} />
+                                <span className="max-w-[220px] truncate">{importProgress}</span>
+                            </>
+                        ) : importStatus === 'error' ? (
+                            <>
+                                <AlertCircle size={16} />
+                                <span className="max-w-[220px] truncate">{importProgress}</span>
+                            </>
+                        ) : (
+                            <>
+                                <RefreshCw size={16} />
+                                Actualiser les données
+                            </>
+                        )}
                     </button>
 
                     <button

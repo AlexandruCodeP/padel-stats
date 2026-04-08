@@ -120,10 +120,18 @@ def generate_test_data(mois_str=None, nb_hommes=2000, nb_femmes=1000):
         print(f"[OK] Generated {nb_hommes} men + {nb_femmes} women for {mois_str}")
 
 
-def import_from_api(mois_str=None, serie=None):
-    """Import data from FFT Ten'Up API (v2)."""
+def import_from_api(mois_str=None, serie=None, progress_callback=None):
+    """Import data from FFT Ten'Up API (v2).
+
+    progress_callback: optional callable(str) for real-time progress updates.
+    """
+    def _progress(msg):
+        print(msg)
+        if progress_callback:
+            progress_callback(msg)
+
     if not HAS_REQUESTS:
-        print("ERROR: 'requests' library not installed. Run: pip install requests")
+        _progress("ERROR: 'requests' library not installed. Run: pip install requests")
         return
 
     if not mois_str:
@@ -131,13 +139,14 @@ def import_from_api(mois_str=None, serie=None):
         mois_str = now.strftime("%Y-%m")
 
     date_classement = get_date_classement(mois_str)
-    print(f"Using dateClassement: {date_classement} for month {mois_str}")
+    _progress(f"Utilisation de la date de classement : {date_classement}")
 
     init_db()
     series = [serie] if serie else ["H", "F"]
 
     for s in series:
-        print(f"\n--- Importing {s} for {mois_str} ---")
+        label = "Hommes" if s == "H" else "Femmes"
+        _progress(f"Récupération du classement {label}...")
         page = 1
         total_imported = 0
         with get_db() as conn:
@@ -158,7 +167,7 @@ def import_from_api(mois_str=None, serie=None):
                     resp.raise_for_status()
                     data = resp.json()
                 except Exception as e:
-                    print(f"  Error on page {page}: {e}")
+                    _progress(f"Erreur page {page} : {e}")
                     break
 
                 items = data.get("joueurs", [])
@@ -195,16 +204,17 @@ def import_from_api(mois_str=None, serie=None):
 
                 total_imported += len(items)
                 total_api = data.get("total", 0)
-                print(f"  Page {page}: {len(items)} players (total: {total_imported}/{total_api})")
+                _progress(f"{label} : {total_imported} / {total_api} joueurs récupérés")
 
                 # v2 API returns 100 per page, stop when we have all
                 if total_imported >= total_api:
                     break
                 page += 1
 
+            _progress(f"Sauvegarde des {label} en base de données...")
             bulk_upsert_classements(conn, classement_rows)
             conn.commit()
-            print(f"  [OK] {total_imported} {s} imported for {mois_str}")
+            _progress(f"{total_imported} {label} importés avec succès")
 
 
 def import_from_csv(filepath):

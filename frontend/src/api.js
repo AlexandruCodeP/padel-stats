@@ -1,5 +1,11 @@
 const BASE = import.meta.env.VITE_API_BASE || '/api';
 
+export const triggerImport = (mois) => {
+    const params = new URLSearchParams();
+    if (mois) params.set('mois', mois);
+    return fetchJSON(`/import/trigger?${params}`, { method: 'POST' });
+};
+
 async function fetchJSON(url, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
