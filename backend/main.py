@@ -2,19 +2,16 @@
 Padel Stats France — FastAPI application
 REST API with base, dashboard, and analytics endpoints.
 """
-import asyncio
 import datetime
-import json
 import logging
 import os
-import queue
 import uuid
 
 from fastapi import FastAPI, Query, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from typing import Optional
@@ -126,7 +123,8 @@ def startup():
 
 # ── Import progress tracking ─────────────────────────────────────────────
 
-# In-memory store: task_id -> {"queue": Queue, "done": bool}
+# In-memory store: task_id -> {status, messages, last_message}
+# status: "running" | "done" | "error"
 _import_tasks: dict = {}
 
 
@@ -137,7 +135,7 @@ def import_trigger(mois: Optional[str] = None):
     1. Probes the FFT API to check if rankings are actually published.
     2. Returns 'not_available' if not yet published.
     3. Returns 'already_imported' if already in DB.
-    4. Otherwise starts the import and returns a task_id for SSE tracking.
+    4. Otherwise starts the import and returns a task_id for polling.
     """
     target_mois = mois or datetime.date.today().strftime("%Y-%m")
 
@@ -158,22 +156,24 @@ def import_trigger(mois: Optional[str] = None):
         return {"status": "already_imported", "mois": target_mois, "count": count}
 
     task_id = str(uuid.uuid4())
-    task_queue: queue.Queue = queue.Queue()
-    _import_tasks[task_id] = {"queue": task_queue, "done": False}
+    _import_tasks[task_id] = {"status": "running", "last_message": "Démarrage...", "error": None}
+
+    def on_progress(msg):
+        if task_id in _import_tasks:
+            _import_tasks[task_id]["last_message"] = msg
 
     def run_import():
         try:
             from import_data import import_from_api
-            import_from_api(
-                target_mois,
-                progress_callback=lambda msg: task_queue.put({"type": "progress", "message": msg}),
-                date_classement=date_classement,
-            )
-            task_queue.put({"type": "done", "message": "Import terminé avec succès !"})
+            import_from_api(target_mois, progress_callback=on_progress, date_classement=date_classement)
+            if task_id in _import_tasks:
+                _import_tasks[task_id]["status"] = "done"
+                _import_tasks[task_id]["last_message"] = "Import terminé avec succès !"
         except Exception as e:
-            task_queue.put({"type": "error", "message": str(e)})
-        finally:
-            _import_tasks[task_id]["done"] = True
+            if task_id in _import_tasks:
+                _import_tasks[task_id]["status"] = "error"
+                _import_tasks[task_id]["error"] = str(e)
+                _import_tasks[task_id]["last_message"] = str(e)
 
     import threading
     threading.Thread(target=run_import, daemon=True).start()
@@ -181,38 +181,21 @@ def import_trigger(mois: Optional[str] = None):
     return {"status": "started", "mois": target_mois, "task_id": task_id}
 
 
-@app.get("/import/progress/{task_id}")
-async def import_progress(task_id: str):
-    """SSE endpoint — streams real-time progress for a running import task."""
-    if task_id not in _import_tasks:
+@app.get("/import/status/{task_id}")
+def import_status(task_id: str):
+    """Poll endpoint — returns current status of a running import task."""
+    task = _import_tasks.get(task_id)
+    if task is None:
         raise HTTPException(status_code=404, detail="Tâche introuvable")
-
-    task = _import_tasks[task_id]
-    task_queue = task["queue"]
-
-    async def event_generator():
-        try:
-            while True:
-                try:
-                    msg = task_queue.get_nowait()
-                    yield f"data: {json.dumps(msg)}\n\n"
-                    if msg["type"] in ("done", "error"):
-                        _import_tasks.pop(task_id, None)
-                        return
-                except queue.Empty:
-                    if task["done"]:
-                        _import_tasks.pop(task_id, None)
-                        return
-                    yield ": keepalive\n\n"
-                    await asyncio.sleep(0.3)
-        except asyncio.CancelledError:
-            pass
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    result = {
+        "status": task["status"],
+        "last_message": task["last_message"],
+        "error": task.get("error"),
+    }
+    # Clean up finished tasks after they've been read as done/error
+    if task["status"] in ("done", "error"):
+        _import_tasks.pop(task_id, None)
+    return result
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────

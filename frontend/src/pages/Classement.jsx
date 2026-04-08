@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
-import { getStats, getMois, getClassement, getClassementExport, triggerImport } from '../api';
+import { getStats, getMois, getClassement, getClassementExport, triggerImport, getImportStatus } from '../api';
 import KPICard from '../components/KPICard';
 import PlayerCard from '../components/PlayerCard';
 import PdfWorker from '../workers/pdfExport.worker.js?worker';
@@ -116,7 +116,6 @@ export default function Classement() {
         setImporting(true);
         setImportStatus(null);
         setImportProgress('Vérification des données...');
-        const BASE = import.meta.env.VITE_API_BASE || '/api';
         // Always import the current calendar month, not the selected month
         const currentMois = new Date().toISOString().slice(0, 7);
 
@@ -145,48 +144,43 @@ export default function Classement() {
                 return;
             }
 
-            // Start SSE stream for progress
-            const eventSource = new EventSource(`${BASE}/import/progress/${result.task_id}`);
-
-            eventSource.onmessage = (e) => {
-                const msg = JSON.parse(e.data);
-                if (msg.type === 'progress') {
-                    setImportProgress(msg.message);
-                } else if (msg.type === 'done') {
-                    setImportProgress(msg.message);
-                    setImportStatus('done');
-                    setImporting(false);
-                    eventSource.close();
-                    // Refresh stats, month list, and classement
-                    Promise.all([getStats(), getMois()]).then(([s, m]) => {
-                        setStats(s);
-                        setMoisList(m);
-                        const newMois = result.mois;
-                        setMois(newMois);
-                        setPage(0);
-                    });
-                    importStatusTimer.current = setTimeout(() => {
-                        setImportProgress('');
-                        setImportStatus(null);
-                    }, 5000);
-                } else if (msg.type === 'error') {
-                    setImportProgress(`Erreur : ${msg.message}`);
+            // Poll status every second
+            const taskId = result.task_id;
+            const poll = setInterval(async () => {
+                try {
+                    const s = await getImportStatus(taskId);
+                    setImportProgress(s.last_message);
+                    if (s.status === 'done') {
+                        clearInterval(poll);
+                        setImportStatus('done');
+                        setImporting(false);
+                        Promise.all([getStats(), getMois()]).then(([st, m]) => {
+                            setStats(st);
+                            setMoisList(m);
+                            setMois(result.mois);
+                            setPage(0);
+                        });
+                        importStatusTimer.current = setTimeout(() => {
+                            setImportProgress('');
+                            setImportStatus(null);
+                        }, 5000);
+                    } else if (s.status === 'error') {
+                        clearInterval(poll);
+                        setImportProgress(`Erreur : ${s.error || s.last_message}`);
+                        setImportStatus('error');
+                        setImporting(false);
+                        importStatusTimer.current = setTimeout(() => {
+                            setImportProgress('');
+                            setImportStatus(null);
+                        }, 6000);
+                    }
+                } catch {
+                    clearInterval(poll);
+                    setImportProgress("Impossible de joindre le serveur.");
                     setImportStatus('error');
                     setImporting(false);
-                    eventSource.close();
-                    importStatusTimer.current = setTimeout(() => {
-                        setImportProgress('');
-                        setImportStatus(null);
-                    }, 6000);
                 }
-            };
-
-            eventSource.onerror = () => {
-                setImportProgress("Connexion perdue, vérifiez les logs.");
-                setImportStatus('error');
-                setImporting(false);
-                eventSource.close();
-            };
+            }, 1000);
         } catch (err) {
             setImportProgress(`Erreur : ${err.message}`);
             setImportStatus('error');

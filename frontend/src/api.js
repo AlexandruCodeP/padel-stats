@@ -5,6 +5,7 @@ export const triggerImport = (mois) => {
     if (mois) params.set('mois', mois);
     return fetchJSON(`/import/trigger?${params}`, { method: 'POST' });
 };
+export const getImportStatus = (taskId) => fetchJSON(`/import/status/${taskId}`);
 
 async function fetchJSON(url, options = {}) {
   const headers = {
