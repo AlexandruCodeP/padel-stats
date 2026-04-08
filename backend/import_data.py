@@ -21,36 +21,12 @@ except ImportError:
 
 API_URL = "https://tenup.fft.fr/back/public/v2/classements/recherche"
 
-# Mapping from YYYY-MM to the FFT dateClassement (first Tuesday of the month)
-DATE_CLASSEMENT_MAP = {
-    "2026-04": "2026-04-07",
-    "2026-03": "2026-03-04",
-    "2026-02": "2026-02-03",
-    "2026-01": "2026-01-07",
-    "2025-12": "2025-12-03",
-    "2025-11": "2025-11-04",
-    "2025-10": "2025-10-07",
-    "2025-09": "2025-09-02",
-    "2025-08": "2025-08-05",
-    "2025-07": "2025-07-01",
-    "2025-06": "2025-06-03",
-    "2025-05": "2025-05-06",
-    "2025-04": "2025-04-01",
-    "2025-03": "2025-03-04",
-    "2025-02": "2025-02-04",
-    "2025-01": "2025-01-07",
-}
-
 
 def get_date_classement(mois_str):
-    """Convert YYYY-MM to the FFT dateClassement (first Tuesday)."""
-    if mois_str in DATE_CLASSEMENT_MAP:
-        return DATE_CLASSEMENT_MAP[mois_str]
-    # Compute first Tuesday of the month
+    """Return the FFT dateClassement for a given YYYY-MM (first Tuesday of the month)."""
     y, m = map(int, mois_str.split("-"))
     d = datetime.date(y, m, 1)
-    # Move to first Tuesday (weekday 1)
-    while d.weekday() != 1:
+    while d.weekday() != 1:  # 1 = Tuesday
         d += datetime.timedelta(days=1)
     return d.isoformat()
 
