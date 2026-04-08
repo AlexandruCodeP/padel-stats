@@ -117,9 +117,11 @@ export default function Classement() {
         setImportStatus(null);
         setImportProgress('Vérification des données...');
         const BASE = import.meta.env.VITE_API_BASE || '/api';
+        // Always import the current calendar month, not the selected month
+        const currentMois = new Date().toISOString().slice(0, 7);
 
         try {
-            const result = await triggerImport(mois);
+            const result = await triggerImport(currentMois);
 
             if (result.status === 'already_imported') {
                 setImportProgress(`Données déjà à jour (${result.count.toLocaleString('fr-FR')} joueurs)`);
