@@ -30,6 +30,41 @@ def get_date_classement(mois_str):
         d += datetime.timedelta(days=1)
     return d.isoformat()
 
+
+def probe_classement_date(mois_str):
+    """Probe the FFT API to find the actual publication date for a given month.
+
+    Tries each day from the first Tuesday up to day 14 of the month and returns
+    the first date that returns real data, or None if not yet available.
+    """
+    if not HAS_REQUESTS:
+        return None
+
+    y, m = map(int, mois_str.split("-"))
+    # Start from the first Tuesday of the month
+    start = datetime.date(y, m, 1)
+    while start.weekday() != 1:
+        start += datetime.timedelta(days=1)
+
+    # Probe up to 8 days past the first Tuesday (covers any publication delay)
+    for delta in range(8):
+        candidate = start + datetime.timedelta(days=delta)
+        if candidate.month != m:
+            break
+        try:
+            resp = requests.post(
+                API_URL,
+                json={"pratique": "PADEL", "sexe": "H", "page": 1, "dateClassement": candidate.isoformat()},
+                headers={"Content-Type": "application/json", "Referer": "https://tenup.fft.fr/classement-padel"},
+                timeout=8,
+            )
+            if resp.ok and resp.json().get("total", 0) > 0:
+                return candidate.isoformat()
+        except Exception:
+            continue
+
+    return None
+
 LIGUES = [
     "AURA", "BFC", "BRE", "CVL", "COR", "GES", "HDF",
     "IDF", "NOR", "NAQ", "OCC", "PDL", "PAC", "GUA",
@@ -97,10 +132,11 @@ def generate_test_data(mois_str=None, nb_hommes=2000, nb_femmes=1000):
         print(f"[OK] Generated {nb_hommes} men + {nb_femmes} women for {mois_str}")
 
 
-def import_from_api(mois_str=None, serie=None, progress_callback=None):
+def import_from_api(mois_str=None, serie=None, progress_callback=None, date_classement=None):
     """Import data from FFT Ten'Up API (v2).
 
     progress_callback: optional callable(str) for real-time progress updates.
+    date_classement: the exact FFT publication date (YYYY-MM-DD); computed if not provided.
     """
     def _progress(msg):
         print(msg)
@@ -115,7 +151,8 @@ def import_from_api(mois_str=None, serie=None, progress_callback=None):
         now = datetime.date.today()
         mois_str = now.strftime("%Y-%m")
 
-    date_classement = get_date_classement(mois_str)
+    if date_classement is None:
+        date_classement = get_date_classement(mois_str)
     _progress(f"Utilisation de la date de classement : {date_classement}")
 
     init_db()

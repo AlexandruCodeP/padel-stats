@@ -20,7 +20,7 @@ export default function Classement() {
 
     const [importing, setImporting] = useState(false);
     const [importProgress, setImportProgress] = useState('');
-    const [importStatus, setImportStatus] = useState(null); // 'done' | 'error' | 'already' | null
+    const [importStatus, setImportStatus] = useState(null); // 'done' | 'error' | 'already' | 'unavailable' | null
     const importStatusTimer = useRef(null);
 
     useEffect(() => {
@@ -122,6 +122,17 @@ export default function Classement() {
 
         try {
             const result = await triggerImport(currentMois);
+
+            if (result.status === 'not_available') {
+                setImportProgress(`Classement ${formatMoisLabel(currentMois)} pas encore disponible`);
+                setImportStatus('unavailable');
+                setImporting(false);
+                importStatusTimer.current = setTimeout(() => {
+                    setImportProgress('');
+                    setImportStatus(null);
+                }, 5000);
+                return;
+            }
 
             if (result.status === 'already_imported') {
                 setImportProgress(`Données déjà à jour (${result.count.toLocaleString('fr-FR')} joueurs)`);
@@ -255,6 +266,8 @@ export default function Classement() {
                                 ? 'bg-emerald-500 text-white border-emerald-500'
                                 : importStatus === 'already'
                                 ? 'bg-sky-500 text-white border-sky-500'
+                                : importStatus === 'unavailable'
+                                ? 'bg-amber-500 text-white border-amber-500'
                                 : importStatus === 'error'
                                 ? 'bg-red-500 text-white border-red-500'
                                 : 'bg-white text-text-secondary border-border hover:bg-gray-50'
@@ -273,6 +286,11 @@ export default function Classement() {
                         ) : importStatus === 'already' ? (
                             <>
                                 <CheckCircle size={16} />
+                                <span className="max-w-[220px] truncate">{importProgress}</span>
+                            </>
+                        ) : importStatus === 'unavailable' ? (
+                            <>
+                                <AlertCircle size={16} />
                                 <span className="max-w-[220px] truncate">{importProgress}</span>
                             </>
                         ) : importStatus === 'error' ? (

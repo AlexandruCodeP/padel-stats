@@ -134,12 +134,20 @@ _import_tasks: dict = {}
 def import_trigger(mois: Optional[str] = None):
     """Start a data import for the given month (defaults to current month).
 
-    Returns immediately with status 'already_imported' if data exists,
-    or status 'started' with a task_id for SSE progress tracking.
+    1. Probes the FFT API to check if rankings are actually published.
+    2. Returns 'not_available' if not yet published.
+    3. Returns 'already_imported' if already in DB.
+    4. Otherwise starts the import and returns a task_id for SSE tracking.
     """
     target_mois = mois or datetime.date.today().strftime("%Y-%m")
 
-    # Check if data already exists for this month
+    # Probe the FFT API to find the actual publication date
+    from import_data import probe_classement_date
+    date_classement = probe_classement_date(target_mois)
+    if date_classement is None:
+        return {"status": "not_available", "mois": target_mois}
+
+    # Check if already imported
     with get_db() as conn:
         count = conn.execute(
             "SELECT COUNT(*) as cnt FROM classements WHERE mois = ?",
@@ -159,6 +167,7 @@ def import_trigger(mois: Optional[str] = None):
             import_from_api(
                 target_mois,
                 progress_callback=lambda msg: task_queue.put({"type": "progress", "message": msg}),
+                date_classement=date_classement,
             )
             task_queue.put({"type": "done", "message": "Import terminé avec succès !"})
         except Exception as e:
