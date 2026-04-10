@@ -208,11 +208,29 @@ self.onmessage = (e) => {
             margin: { top: MINI_H + 2, left: M, right: M, bottom: 16 },
         });
 
-        // ── Post-processing: page numbers ──
+        // ── Post-processing: watermark + page numbers ──
         self.postMessage({ type: 'progress', message: 'Finalisation...' });
         const totalPages = doc.internal.getNumberOfPages();
+        const watermarkState = new doc.GState({ opacity: 0.06 });
+        const opaqueState = new doc.GState({ opacity: 1 });
+
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
+
+            // ── Watermark "PADEL MAGAZINE" ──
+            doc.saveGraphicsState();
+            doc.setGState(watermarkState);
+            doc.setTextColor(150, 150, 150);
+            doc.setFontSize(54);
+            doc.setFont('helvetica', 'bold');
+            doc.text('PADEL MAGAZINE', W / 2, H / 2, {
+                align: 'center',
+                angle: 45,
+            });
+            doc.setGState(opaqueState);
+            doc.restoreGraphicsState();
+
+            // ── Page numbers ──
             const footerY = H - 10;
             doc.setFillColor(255, 255, 255);
             doc.rect(W - M - 34, footerY + 0.5, 36, 6, 'F');
