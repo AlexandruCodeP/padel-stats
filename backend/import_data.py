@@ -23,6 +23,7 @@ API_URL = "https://tenup.fft.fr/back/public/v2/classements/recherche"
 
 # Mapping from YYYY-MM to the FFT dateClassement (first Tuesday of the month)
 DATE_CLASSEMENT_MAP = {
+    "2026-04": "2026-04-08",
     "2026-03": "2026-03-04",
     "2026-02": "2026-02-03",
     "2026-01": "2026-01-07",
