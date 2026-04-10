@@ -217,16 +217,19 @@ self.onmessage = (e) => {
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
 
-            // ── Watermark "PADEL MAGAZINE" ──
+            // ── Watermark "PADEL MAGAZINE" (repeated grid) ──
             doc.saveGraphicsState();
             doc.setGState(watermarkState);
             doc.setTextColor(150, 150, 150);
-            doc.setFontSize(54);
+            doc.setFontSize(38);
             doc.setFont('helvetica', 'bold');
-            doc.text('PADEL MAGAZINE', W / 2, H / 2, {
-                align: 'center',
-                angle: 45,
-            });
+            const wmSpacingX = 120;
+            const wmSpacingY = 80;
+            for (let wy = -40; wy < H + 40; wy += wmSpacingY) {
+                for (let wx = -40; wx < W + 80; wx += wmSpacingX) {
+                    doc.text('PADEL MAGAZINE', wx, wy, { angle: 45 });
+                }
+            }
             doc.setGState(opaqueState);
             doc.restoreGraphicsState();
 
