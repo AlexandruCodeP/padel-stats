@@ -3,7 +3,7 @@ Padel Stats France — Database module
 SQLite schema, CRUD, and analytics queries.
 """
 import sqlite3
-import gzip
+import lzma
 import shutil
 import os
 from contextlib import contextmanager
@@ -21,9 +21,9 @@ def _resolve_db_path() -> str:
     if _VERCEL:
         tmp_db = "/tmp/padel_stats.db"
         if not os.path.exists(tmp_db):
-            gz_path = os.path.join(_BACKEND_DIR, "padel_stats.db.gz")
-            if os.path.exists(gz_path):
-                with gzip.open(gz_path, "rb") as f_in, open(tmp_db, "wb") as f_out:
+            xz_path = os.path.join(_BACKEND_DIR, "padel_stats.db.xz")
+            if os.path.exists(xz_path):
+                with lzma.open(xz_path, "rb") as f_in, open(tmp_db, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
         return tmp_db
 
