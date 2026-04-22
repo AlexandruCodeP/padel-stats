@@ -33,7 +33,7 @@ export default function Evolution() {
     const [moisList, setMoisList] = useState([]);
     const [mois, setMois] = useState('');
     const [genre, setGenre] = useState('');
-    const [rangMax, setRangMax] = useState('');
+    const [rangMax, setRangMax] = useState('1000');
     const [difficulte, setDifficulte] = useState([]);
     const [inflation, setInflation] = useState([]);
     const [feminine, setFeminine] = useState([]);
@@ -204,7 +204,7 @@ export default function Evolution() {
                                         <span className={`text-xs px-2 py-0.5 rounded-full border ${p.genre === 'H' ? 'text-homme border-homme/30 bg-homme/5' : 'text-femme border-femme/30 bg-femme/5'}`}>
                                             {p.genre === 'H' ? 'Homme' : 'Femme'}
                                         </span>
-                                        <span className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</span>
+                                        <span className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</span>
                                     </div>
                                 </div>
                             );
@@ -272,13 +272,13 @@ export default function Evolution() {
                 {/* Difficulte de progression */}
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                     <h3 className="font-semibold text-text mb-1">Difficulte de progression</h3>
-                    <p className="text-xs text-text-secondary mb-4">Taux de joueurs ayant progresse par tranche de classement</p>
+                    <p className="text-xs text-text-secondary mb-4">Part des joueurs ayant gagne au moins une place ce mois-ci, par tranche de classement. Plus la tranche est haute, plus il est difficile de progresser.</p>
                     <ResponsiveContainer width="100%" height={280}>
                         <BarChart data={difficulte}>
                             <XAxis dataKey="tranche" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomTooltip />} formatter={(v) => `${v}%`} />
-                            <Bar dataKey="taux" fill="#10b981" radius={[8, 8, 0, 0]} name="Taux de progression" />
+                            <Tooltip content={<CustomTooltip />} formatter={(v) => `${v}% des joueurs ont progresse`} />
+                            <Bar dataKey="taux" fill="#10b981" radius={[8, 8, 0, 0]} name="Progression" />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -287,7 +287,7 @@ export default function Evolution() {
                 {inflation.length > 1 && (
                     <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                         <h3 className="font-semibold text-text mb-1">Inflation des points</h3>
-                        <p className="text-xs text-text-secondary mb-4">Points necessaires pour chaque rang au fil du temps</p>
+                        <p className="text-xs text-text-secondary mb-4">Evolution du nombre de points necessaire pour atteindre chaque rang au fil des mois. Une courbe qui monte indique qu'il faut plus de points qu'avant pour rester au meme classement.</p>
                         <ResponsiveContainer width="100%" height={280}>
                             <LineChart data={inflation}>
                                 <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
@@ -321,7 +321,7 @@ export default function Evolution() {
                                             <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
                                             <div>
                                                 <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                                <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                <div className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</div>
                                             </div>
                                         </div>
                                         <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
@@ -343,7 +343,7 @@ export default function Evolution() {
                                             <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
                                             <div>
                                                 <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                                <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                <div className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</div>
                                             </div>
                                         </div>
                                         <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
@@ -373,7 +373,7 @@ export default function Evolution() {
                                                 <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
                                                 <div>
                                                     <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</div>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
@@ -398,7 +398,7 @@ export default function Evolution() {
                                                 <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
                                                 <div>
                                                     <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</div>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-bold text-success font-data">{p.evolution}</span>
@@ -425,7 +425,7 @@ export default function Evolution() {
                                                 <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
                                                 <div>
                                                     <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</div>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
@@ -450,7 +450,7 @@ export default function Evolution() {
                                                 <span className="text-xs font-bold text-text-secondary w-5">{i + 1}</span>
                                                 <div>
                                                     <div className="text-sm font-medium text-text">{p.prenom} {p.nom}</div>
-                                                    <div className="text-xs text-text-secondary">#{p.rang} · {p.ligue}</div>
+                                                    <div className="text-xs text-text-secondary">#{p.rang + parseInt(p.evolution || 0)} → #{p.rang} · {p.ligue}</div>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-bold text-red-500 font-data">{p.evolution}</span>
