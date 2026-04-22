@@ -310,7 +310,7 @@ export default function Dashboard() {
                                         style={{ borderRadius: '10px' }}>
                                         <div>
                                             <span className="font-medium text-sm text-text">{j.prenom} {j.nom}</span>
-                                            <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang}</span>
+                                            <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang + parseInt(j.evolution || 0)} → #{j.rang}</span>
                                         </div>
                                         <span className="text-xs font-bold px-2 py-0.5 font-data"
                                             style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: '#10B981', borderRadius: '999px' }}>
@@ -338,7 +338,7 @@ export default function Dashboard() {
                                         style={{ borderRadius: '10px' }}>
                                         <div>
                                             <span className="font-medium text-sm text-text">{j.prenom} {j.nom}</span>
-                                            <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang}</span>
+                                            <span className="text-xs text-text-secondary ml-2 font-data">#{j.rang + parseInt(j.evolution || 0)} → #{j.rang}</span>
                                         </div>
                                         <span className="text-xs font-bold px-2 py-0.5 font-data"
                                             style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#EF4444', borderRadius: '999px' }}>
