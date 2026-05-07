@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe } from 'lucide-react';
-import { getStats, getMois, getClassement, getClassementExport } from '../api';
+import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe, DownloadCloud } from 'lucide-react';
+import { getStats, getMois, getClassement, getClassementExport, importNewData } from '../api';
 import KPICard from '../components/KPICard';
 import PlayerCard from '../components/PlayerCard';
 import PdfWorker from '../workers/pdfExport.worker.js?worker';
@@ -16,6 +16,7 @@ export default function Classement() {
     const [fipOnly, setFipOnly] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState('');
+    const [importing, setImporting] = useState(false);
     const workerRef = useRef(null);
 
     useEffect(() => {
@@ -43,6 +44,32 @@ export default function Classement() {
         const [y, mo] = m.split('-');
         const months = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
         return `${months[parseInt(mo)]} ${y}`;
+    };
+
+    const handleImport = async () => {
+        if (importing) return;
+        setImporting(true);
+        try {
+            const result = await importNewData();
+            if (result.imported && result.imported.length > 0) {
+                const labels = result.imported.map(formatMoisLabel).join(', ');
+                alert(`Import termine : ${labels}`);
+                const [s, m] = await Promise.all([getStats(), getMois()]);
+                setStats(s);
+                setMoisList(m);
+                if (m.length > 0) {
+                    setMois(m[0].mois);
+                    setPage(0);
+                }
+            } else {
+                alert('Aucune nouvelle donnee disponible sur Ten’Up.');
+            }
+        } catch (err) {
+            console.error('Import error:', err);
+            alert("Erreur lors de l'import des donnees. Veuillez reessayer.");
+        } finally {
+            setImporting(false);
+        }
     };
 
     const exportPDF = async () => {
@@ -164,6 +191,24 @@ export default function Classement() {
                     >
                         <Globe size={15} />
                         FIP
+                    </button>
+
+                    <button
+                        onClick={handleImport}
+                        disabled={importing}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white text-text-secondary border border-border hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {importing ? (
+                            <>
+                                <Loader2 size={15} className="animate-spin" />
+                                Import en cours...
+                            </>
+                        ) : (
+                            <>
+                                <DownloadCloud size={15} />
+                                Import donnees
+                            </>
+                        )}
                     </button>
 
                     <button

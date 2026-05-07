@@ -208,6 +208,63 @@ def import_from_api(mois_str=None, serie=None):
             print(f"  [OK] {total_imported} {s} imported for {mois_str}")
 
 
+def check_new_months_available():
+    """Probe the FFT API for months newer than the latest month in our DB.
+
+    Returns a list of YYYY-MM strings whose dateClassement is in the past
+    and for which the API returns at least one player. Stops at the first
+    month that has no data (avoids wasted requests on far-future months).
+    """
+    if not HAS_REQUESTS:
+        return []
+
+    init_db()
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT mois FROM classements ORDER BY mois DESC LIMIT 1"
+        ).fetchone()
+    latest = row["mois"] if row else None
+    if not latest:
+        return []
+
+    new_months = []
+    y, m = map(int, latest.split("-"))
+    today = datetime.date.today()
+    for _ in range(6):
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+        candidate = f"{y}-{m:02d}"
+        date_classement = get_date_classement(candidate)
+        if datetime.date.fromisoformat(date_classement) > today:
+            break
+        try:
+            resp = requests.post(
+                API_URL,
+                json={
+                    "pratique": "PADEL",
+                    "sexe": "H",
+                    "page": 1,
+                    "dateClassement": date_classement,
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "Referer": "https://tenup.fft.fr/classement-padel",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            break
+        if data.get("joueurs"):
+            new_months.append(candidate)
+        else:
+            break
+    return new_months
+
+
 def import_from_csv(filepath):
     """Import data from a CSV file."""
     import csv

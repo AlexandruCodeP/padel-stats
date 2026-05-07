@@ -155,6 +155,29 @@ def admin_scheduler_info():
     return {"running": scheduler.running, "jobs": jobs}
 
 
+@app.post("/import/check-new", tags=["import"])
+def import_check_new():
+    """Check FFT Ten'Up for months newer than our latest data; import them.
+
+    Synchronous — frontend shows a loading state until completion.
+    """
+    from import_data import check_new_months_available, import_from_api
+    try:
+        new_months = check_new_months_available()
+    except Exception as e:
+        logger.error(f"[Import] Probe failed: {e}")
+        raise HTTPException(status_code=502, detail="Impossible de contacter Ten'Up")
+    imported = []
+    for m in new_months:
+        try:
+            import_from_api(m)
+            imported.append(m)
+        except Exception as e:
+            logger.error(f"[Import] Failed for {m}: {e}")
+            break
+    return {"imported": imported, "checked_up_to": new_months[-1] if new_months else None}
+
+
 @app.get("/cron/import", tags=["cron"])
 def cron_import(request: Request):
     """Vercel Cron Job endpoint — triggers monthly FFT import on first Tuesday."""
