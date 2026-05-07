@@ -29,6 +29,7 @@ export const getClassementExport = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/classement/${mois}/export?${params}`);
 };
+export const importNewData = () => fetchJSON('/import/check-new', { method: 'POST' });
 export const getJoueur = (id) => fetchJSON(`/joueur/${id}`);
 export const rechercher = (q, genre, limit = 20) => {
     const params = new URLSearchParams({ q, limit });
