@@ -66,7 +66,8 @@ export default function Classement() {
             }
         } catch (err) {
             console.error('Import error:', err);
-            alert("Erreur lors de l'import des donnees. Veuillez reessayer.");
+            const msg = err && err.message ? err.message : 'Erreur inconnue';
+            alert(`Erreur lors de l'import des donnees : ${msg}`);
         } finally {
             setImporting(false);
         }
