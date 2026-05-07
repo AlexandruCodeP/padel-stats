@@ -93,7 +93,7 @@ def register(req: RegisterRequest):
             "INSERT INTO users (name, email, password_hash) VALUES (?,?,?) RETURNING id",
             (name, email, hashed),
         )
-        user_id = cur.fetchone()[0]
+        user_id = cur.fetchone()["id"]
 
     token = create_access_token(user_id, email, name)
     return {"token": token, "user": {"id": user_id, "email": email, "name": name}}

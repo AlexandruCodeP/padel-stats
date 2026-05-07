@@ -160,14 +160,16 @@ def import_check_new():
     """Check FFT Ten'Up for months newer than our latest data; import them.
 
     Synchronous — frontend shows a loading state until completion.
+    Requires a persistent DB (DATABASE_URL set, e.g. Supabase) when running
+    on serverless platforms; otherwise writes go to ephemeral storage.
     """
-    if _VERCEL:
+    from database import USE_POSTGRES
+    if _VERCEL and not USE_POSTGRES:
         raise HTTPException(
             status_code=503,
             detail=(
-                "Import indisponible sur ce déploiement (stockage éphémère). "
-                "Les nouvelles données sont importées automatiquement le 1er mardi "
-                "du mois via le cron de production."
+                "Import indisponible : configure DATABASE_URL (Supabase) sur ce déploiement "
+                "pour que les nouvelles données persistent."
             ),
         )
     from import_data import check_new_months_available, import_from_api

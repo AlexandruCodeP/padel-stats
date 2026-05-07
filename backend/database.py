@@ -1,6 +1,10 @@
 """
 Padel Stats France — Database module
-SQLite schema, CRUD, and analytics queries.
+Schema, CRUD, and analytics queries.
+
+Backend selection:
+- If DATABASE_URL is set (postgres://... or postgresql://...): Supabase / Postgres.
+- Otherwise: local SQLite file (with /tmp decompression on Vercel).
 """
 import sqlite3
 import glob as _glob
@@ -11,6 +15,8 @@ from contextlib import contextmanager
 
 _VERCEL = bool(os.environ.get("VERCEL"))
 _BACKEND_DIR = os.path.dirname(__file__)
+_DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+USE_POSTGRES = _DATABASE_URL.startswith(("postgres://", "postgresql://"))
 
 
 def _resolve_db_path() -> str:
@@ -37,10 +43,24 @@ def _resolve_db_path() -> str:
     return os.path.join(_BACKEND_DIR, "padel_stats.db")
 
 
-DB_PATH = _resolve_db_path()
+DB_PATH = None if USE_POSTGRES else _resolve_db_path()
+
+# Safe-cast fragments for `c.evolution` (e.g. "+12", "-3", "=").
+# Postgres throws on `CAST('=' AS INTEGER)`; SQLite silently returns 0.
+if USE_POSTGRES:
+    _EVO_SIGNED = "(CASE WHEN c.evolution ~ '^[+-]?[0-9]+$' THEN replace(c.evolution,'+','')::INTEGER ELSE 0 END)"
+    _EVO_ABS_NEG = "(CASE WHEN c.evolution ~ '^-[0-9]+$' THEN replace(c.evolution,'-','')::INTEGER ELSE 0 END)"
+    _EVO_ABS = "(CASE WHEN c.evolution ~ '^[+-]?[0-9]+$' THEN replace(replace(c.evolution,'+',''),'-','')::INTEGER ELSE 0 END)"
+else:
+    _EVO_SIGNED = "CAST(REPLACE(c.evolution,'+','') AS INTEGER)"
+    _EVO_ABS_NEG = "CAST(REPLACE(c.evolution,'-','') AS INTEGER)"
+    _EVO_ABS = "CAST(REPLACE(REPLACE(c.evolution,'+',''),'-','') AS INTEGER)"
 
 
 def get_connection():
+    if USE_POSTGRES:
+        from db_pg import connect as _pg_connect
+        return _pg_connect(_DATABASE_URL)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -65,63 +85,117 @@ def get_db():
 
 # ── Schema ───────────────────────────────────────────────────────────────
 
+_SCHEMA_PG = """
+CREATE TABLE IF NOT EXISTS joueurs (
+    id BIGSERIAL PRIMARY KEY,
+    nom TEXT NOT NULL,
+    prenom TEXT,
+    genre TEXT NOT NULL CHECK(genre IN ('H','F')),
+    nationalite TEXT,
+    UNIQUE(nom, prenom, genre)
+);
+
+CREATE TABLE IF NOT EXISTS classements (
+    id BIGSERIAL PRIMARY KEY,
+    joueur_id BIGINT NOT NULL REFERENCES joueurs(id),
+    mois TEXT NOT NULL,
+    rang INTEGER,
+    points INTEGER,
+    evolution TEXT,
+    nb_tournois INTEGER,
+    ligue TEXT,
+    meilleur_classement INTEGER,
+    est_assimile BOOLEAN DEFAULT FALSE,
+    age INTEGER,
+    est_anonyme BOOLEAN DEFAULT FALSE,
+    genre TEXT,
+    club TEXT,
+    classement_fip INTEGER,
+    UNIQUE(joueur_id, mois)
+);
+
+CREATE INDEX IF NOT EXISTS idx_classements_mois ON classements(mois);
+CREATE INDEX IF NOT EXISTS idx_classements_joueur ON classements(joueur_id);
+CREATE INDEX IF NOT EXISTS idx_classements_rang ON classements(rang);
+CREATE INDEX IF NOT EXISTS idx_classements_mois_genre ON classements(mois, genre);
+CREATE INDEX IF NOT EXISTS idx_classements_mois_rang ON classements(mois, rang);
+CREATE INDEX IF NOT EXISTS idx_joueurs_nom ON joueurs(nom, prenom);
+CREATE INDEX IF NOT EXISTS idx_joueurs_genre ON joueurs(genre);
+
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+"""
+
+_SCHEMA_SQLITE = """
+CREATE TABLE IF NOT EXISTS joueurs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom TEXT NOT NULL,
+    prenom TEXT,
+    genre TEXT NOT NULL CHECK(genre IN ('H','F')),
+    nationalite TEXT,
+    UNIQUE(nom, prenom, genre)
+);
+
+CREATE TABLE IF NOT EXISTS classements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    joueur_id INTEGER NOT NULL REFERENCES joueurs(id),
+    mois TEXT NOT NULL,
+    rang INTEGER,
+    points INTEGER,
+    evolution TEXT,
+    nb_tournois INTEGER,
+    ligue TEXT,
+    meilleur_classement INTEGER,
+    est_assimile BOOLEAN DEFAULT 0,
+    age INTEGER,
+    est_anonyme BOOLEAN DEFAULT 0,
+    genre TEXT,
+    club TEXT,
+    classement_fip INTEGER,
+    UNIQUE(joueur_id, mois)
+);
+
+CREATE INDEX IF NOT EXISTS idx_classements_mois ON classements(mois);
+CREATE INDEX IF NOT EXISTS idx_classements_joueur ON classements(joueur_id);
+CREATE INDEX IF NOT EXISTS idx_classements_rang ON classements(rang);
+CREATE INDEX IF NOT EXISTS idx_classements_mois_genre ON classements(mois, genre);
+CREATE INDEX IF NOT EXISTS idx_classements_mois_rang ON classements(mois, rang);
+CREATE INDEX IF NOT EXISTS idx_joueurs_nom ON joueurs(nom, prenom);
+CREATE INDEX IF NOT EXISTS idx_joueurs_genre ON joueurs(genre);
+
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+"""
+
+
 def init_db():
     with get_db() as conn:
-        conn.executescript("""
-        CREATE TABLE IF NOT EXISTS joueurs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT NOT NULL,
-            prenom TEXT,
-            genre TEXT NOT NULL CHECK(genre IN ('H','F')),
-            nationalite TEXT,
-            UNIQUE(nom, prenom, genre)
-        );
-
-        CREATE TABLE IF NOT EXISTS classements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            joueur_id INTEGER NOT NULL REFERENCES joueurs(id),
-            mois TEXT NOT NULL,
-            rang INTEGER,
-            points INTEGER,
-            evolution TEXT,
-            nb_tournois INTEGER,
-            ligue TEXT,
-            meilleur_classement INTEGER,
-            est_assimile BOOLEAN DEFAULT 0,
-            age INTEGER,
-            est_anonyme BOOLEAN DEFAULT 0,
-            UNIQUE(joueur_id, mois)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_classements_mois ON classements(mois);
-        CREATE INDEX IF NOT EXISTS idx_classements_joueur ON classements(joueur_id);
-        CREATE INDEX IF NOT EXISTS idx_classements_rang ON classements(rang);
-        CREATE INDEX IF NOT EXISTS idx_classements_mois_genre ON classements(mois, genre);
-        CREATE INDEX IF NOT EXISTS idx_classements_mois_rang ON classements(mois, rang);
-        CREATE INDEX IF NOT EXISTS idx_joueurs_nom ON joueurs(nom, prenom);
-        CREATE INDEX IF NOT EXISTS idx_joueurs_genre ON joueurs(genre);
-
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        """)
-        # Migrations for existing DBs
-        for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT"), ("classement_fip", "INTEGER")]:
-            try:
-                conn.execute(f"ALTER TABLE classements ADD COLUMN {col} {default}")
-                conn.commit()
-            except Exception:
-                pass  # Column already exists
-        # Backfill genre from joueurs if needed
-        conn.execute("UPDATE classements SET genre = (SELECT genre FROM joueurs WHERE joueurs.id = classements.joueur_id) WHERE genre IS NULL")
-        conn.commit()
-    print("Database initialized.")
+        conn.executescript(_SCHEMA_PG if USE_POSTGRES else _SCHEMA_SQLITE)
+        if not USE_POSTGRES:
+            # Migrations for existing SQLite DBs (schema is up-to-date on Postgres)
+            for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT"), ("classement_fip", "INTEGER")]:
+                try:
+                    conn.execute(f"ALTER TABLE classements ADD COLUMN {col} {default}")
+                    conn.commit()
+                except Exception:
+                    pass  # Column already exists
+            conn.execute("UPDATE classements SET genre = (SELECT genre FROM joueurs WHERE joueurs.id = classements.joueur_id) WHERE genre IS NULL")
+            conn.commit()
+    print(f"Database initialized ({'Postgres' if USE_POSTGRES else 'SQLite'}).")
 
 
 # ── CRUD helpers ─────────────────────────────────────────────────────────
@@ -134,7 +208,7 @@ def upsert_joueur(conn, nom, prenom, genre, nationalite):
            RETURNING id""",
         (nom, prenom or "", genre, nationalite),
     )
-    return cur.fetchone()[0]
+    return cur.fetchone()["id"]
 
 
 def bulk_upsert_classements(conn, rows):
@@ -416,8 +490,8 @@ def dashboard_progressions(conn, mois=None, genre=None, limit=10, rang_max=None,
         f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
-              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf} {rf} {af}
-            ORDER BY CAST(REPLACE(c.evolution,'+','') AS INTEGER) DESC LIMIT ?""",
+              AND {_EVO_SIGNED} > 0 {gf} {rf} {af}
+            ORDER BY {_EVO_SIGNED} DESC LIMIT ?""",
         [mois] + gp + rp + [limit],
     ).fetchall()
     return [dict(r) for r in rows]
@@ -437,9 +511,9 @@ def dashboard_chutes(conn, mois=None, genre=None, limit=10, rang_max=None, exclu
         f"""SELECT j.id, j.nom, j.prenom, c.genre, c.rang, c.points, c.evolution, c.ligue
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
-              AND CAST(REPLACE(c.evolution,'-','') AS INTEGER) > 0
+              AND {_EVO_ABS_NEG} > 0
               AND c.evolution LIKE '-%' {gf} {rf} {af}
-            ORDER BY CAST(REPLACE(c.evolution,'-','') AS INTEGER) DESC LIMIT ?""",
+            ORDER BY {_EVO_ABS_NEG} DESC LIMIT ?""",
         [mois] + gp + rp + [limit],
     ).fetchall()
     return [dict(r) for r in rows]
@@ -524,7 +598,7 @@ def analytics_difficulte_progression(conn, mois=None, genre=None):
         row = conn.execute(
             f"""SELECT COUNT(*) as total,
                        SUM(CASE WHEN c.evolution IS NOT NULL AND c.evolution != '='
-                           AND CAST(REPLACE(REPLACE(c.evolution,'+',''),'-','') AS INTEGER) > 0
+                           AND {_EVO_ABS} > 0
                            AND c.evolution NOT LIKE '-%' THEN 1 ELSE 0 END) as progressions
                 FROM classements c JOIN joueurs j ON j.id=c.joueur_id
                 WHERE c.mois=? AND c.rang BETWEEN ? AND ? {gf}""",
@@ -828,8 +902,8 @@ def analytics_records(conn, mois=None, genre=None):
             FROM classements c JOIN joueurs j ON j.id=c.joueur_id
             WHERE c.mois=? AND c.evolution IS NOT NULL AND c.evolution != '='
               AND c.evolution NOT LIKE '-%'
-              AND CAST(REPLACE(c.evolution,'+','') AS INTEGER) > 0 {gf}
-            ORDER BY CAST(REPLACE(c.evolution,'+','') AS INTEGER) DESC LIMIT 1""",
+              AND {_EVO_SIGNED} > 0 {gf}
+            ORDER BY {_EVO_SIGNED} DESC LIMIT 1""",
         [mois] + gp,
     ).fetchone()
 
