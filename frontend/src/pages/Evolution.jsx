@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
-import { getMois, getAnalyticsDifficulte, getAnalyticsInflation, getAnalyticsRecords, getDashboardEvolution, getDashboardProgressions, getDashboardChutes } from '../api';
+import { getMois, getAnalyticsDifficulte, getAnalyticsInflation, getAnalyticsRecords, getDashboardEvolution, getDashboardProgressions, getDashboardChutes, getAnalyticsFeminine } from '../api';
 import { TrendingUp, TrendingDown, Zap, Flame, Users, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -39,6 +39,7 @@ export default function Evolution() {
     const [feminine, setFeminine] = useState([]);
     const [records, setRecords] = useState(null);
     const [evolution, setEvolution] = useState([]);
+    const [feminineEvo, setFeminineEvo] = useState([]);
     const [progressions, setProgressions] = useState([]);
     const [chutes, setChutes] = useState([]);
     const [progressionsH, setProgressionsH] = useState([]);
@@ -49,6 +50,7 @@ export default function Evolution() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => { getMois().then(m => { setMoisList(m); if (m.length) setMois(m[0].mois); }); }, []);
+    useEffect(() => { getAnalyticsFeminine().then(setFeminineEvo); }, []);
 
     useEffect(() => {
         if (!mois) return;
@@ -109,12 +111,13 @@ export default function Evolution() {
         </div>
     );
 
-    // Compute evolution deltas
-    const latestEvo = evolution.length >= 2 ? evolution[evolution.length - 1] : null;
-    const prevEvo = evolution.length >= 2 ? evolution[evolution.length - 2] : null;
-    const deltaTotal = latestEvo && prevEvo ? latestEvo.total - prevEvo.total : null;
-    const deltaHommes = latestEvo && prevEvo ? latestEvo.hommes - prevEvo.hommes : null;
-    const deltaFemmes = latestEvo && prevEvo ? latestEvo.femmes - prevEvo.femmes : null;
+    // KPIs reflect the selected month (not just the latest one)
+    const selectedIdx = evolution.findIndex(e => e.mois === mois);
+    const selectedEvo = selectedIdx >= 0 ? evolution[selectedIdx] : (evolution.length ? evolution[evolution.length - 1] : null);
+    const prevEvo = selectedIdx > 0 ? evolution[selectedIdx - 1] : null;
+    const deltaTotal = selectedEvo && prevEvo ? selectedEvo.total - prevEvo.total : null;
+    const deltaHommes = selectedEvo && prevEvo ? selectedEvo.hommes - prevEvo.hommes : null;
+    const deltaFemmes = selectedEvo && prevEvo ? selectedEvo.femmes - prevEvo.femmes : null;
 
     return (
         <div>
@@ -148,13 +151,13 @@ export default function Evolution() {
             </div>
 
             {/* KPI Row */}
-            {latestEvo && (
+            {selectedEvo && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                     {[
-                        { label: 'Total classes', value: latestEvo.total, delta: deltaTotal, icon: Users },
-                        { label: 'Hommes', value: latestEvo.hommes, delta: deltaHommes, color: 'text-homme' },
-                        { label: 'Femmes', value: latestEvo.femmes, delta: deltaFemmes, color: 'text-femme' },
-                        { label: 'Ratio F/H', value: latestEvo.femmes && latestEvo.hommes ? `${((latestEvo.femmes / latestEvo.total) * 100).toFixed(1)}%` : '-', delta: null },
+                        { label: 'Total classes', value: selectedEvo.total, delta: deltaTotal, icon: Users },
+                        { label: 'Hommes', value: selectedEvo.hommes, delta: deltaHommes, color: 'text-homme' },
+                        { label: 'Femmes', value: selectedEvo.femmes, delta: deltaFemmes, color: 'text-femme' },
+                        { label: 'Ratio F/H', value: selectedEvo.femmes && selectedEvo.hommes ? `${((selectedEvo.femmes / selectedEvo.total) * 100).toFixed(1)}%` : '-', delta: null },
                     ].map(({ label, value, delta, color, icon: Icon }) => (
                         <div key={label} className="bg-card rounded-2xl border border-border p-4 shadow-sm">
                             <div className="text-xs text-text-secondary mb-1 flex items-center gap-1.5">
@@ -237,6 +240,24 @@ export default function Evolution() {
                             );
                         })()}
                     </div>
+                </div>
+            )}
+
+            {/* Evolution du ratio Dames / Messieurs dans le temps */}
+            {feminineEvo.length > 1 && (
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm mb-6">
+                    <h3 className="font-semibold text-text mb-1">Evolution du ratio Dames / Messieurs</h3>
+                    <p className="text-xs text-text-secondary mb-4">Part en pourcentage des dames et des messieurs dans le classement, mois par mois.</p>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={feminineEvo.map(d => ({ ...d, pct_hommes: +(100 - d.pct_femmes).toFixed(2) }))}>
+                            <XAxis dataKey="mois" tickFormatter={formatMoisLabel} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" domain={[0, 100]} axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip labelFormatter={formatMoisLabel} />} formatter={(v) => `${v}%`} />
+                            <Legend />
+                            <Line type="monotone" dataKey="pct_hommes" name="% Messieurs" stroke={HOMME} strokeWidth={2} dot={false} />
+                            <Line type="monotone" dataKey="pct_femmes" name="% Dames" stroke={FEMME} strokeWidth={2} dot={false} />
+                        </LineChart>
+                    </ResponsiveContainer>
                 </div>
             )}
 

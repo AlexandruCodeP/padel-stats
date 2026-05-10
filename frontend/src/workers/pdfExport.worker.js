@@ -9,7 +9,7 @@ self.onmessage = (e) => {
     try {
         self.postMessage({ type: 'progress', message: 'Preparation du document...' });
 
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
         const W = doc.internal.pageSize.getWidth();   // 210 mm
         const H = doc.internal.pageSize.getHeight();  // 297 mm
         const M = 20; // margins
@@ -219,16 +219,16 @@ self.onmessage = (e) => {
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
 
-            // ── Watermark "PADEL MAGAZINE" (repeated grid) ──
+            // ── Watermark "PADEL MAGAZINE" (sparse grid, lighter file size) ──
             doc.saveGraphicsState();
             doc.setGState(watermarkState);
             doc.setTextColor(150, 150, 150);
-            doc.setFontSize(38);
+            doc.setFontSize(46);
             doc.setFont('helvetica', 'bold');
-            const wmSpacingX = 120;
-            const wmSpacingY = 80;
-            for (let wy = -40; wy < H + 40; wy += wmSpacingY) {
-                for (let wx = -40; wx < W + 80; wx += wmSpacingX) {
+            const wmSpacingX = 180;
+            const wmSpacingY = 140;
+            for (let wy = 20; wy < H; wy += wmSpacingY) {
+                for (let wx = -20; wx < W; wx += wmSpacingX) {
                     doc.text('PADEL MAGAZINE', wx, wy, { angle: 45 });
                 }
             }
