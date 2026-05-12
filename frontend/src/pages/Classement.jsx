@@ -255,8 +255,8 @@ export default function Classement() {
             ) : data ? (
                 <>
                     <div className="space-y-2">
-                        {data.joueurs.map((j, i) => (
-                            <PlayerCard key={j.id} joueur={j} rank={page * 50 + i + 1} />
+                        {data.joueurs.map((j) => (
+                            <PlayerCard key={j.id} joueur={j} rank={j.rang} />
                         ))}
                     </div>
 
