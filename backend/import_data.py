@@ -172,7 +172,10 @@ def import_from_api(mois_str=None, serie=None):
                     prenom = (item.get("prenom") or "").strip()
                     genre = s
                     nat = item.get("nationalite") or ""
-                    rang = item.get("position")
+                    # "classement" = rang officiel publié (affiché sur Ten'Up).
+                    # "position" = simple index dans la réponse paginée. Les deux divergent
+                    # à cause des assimilés/anonymes qui partagent l'espace de numérotation.
+                    rang = item.get("classement") or item.get("position")
 
                     # Anonymous player: no name returned by API
                     # Use idCrm (or position) as unique identifier to avoid UNIQUE constraint conflicts
