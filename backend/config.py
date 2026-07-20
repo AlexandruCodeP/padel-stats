@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # ── Environment ───────────────────────────────────────────────────────
     environment: str = "development"
 
+    # ── GitHub sync (persists imported months across cold starts) ──────────
+    github_token: str = ""
+    github_repo: str = "AlexandruCodeP/padel-stats"
+    github_db_path: str = "backend/padel_stats.db.xz"
+    github_branch: str = "master"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

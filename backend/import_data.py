@@ -124,8 +124,49 @@ def generate_test_data(mois_str=None, nb_hommes=2000, nb_femmes=1000):
         print(f"[OK] Generated {nb_hommes} men + {nb_femmes} women for {mois_str}")
 
 
+def _fetch_page(genre, page, date_classement):
+    resp = requests.post(
+        API_URL,
+        json={"pratique": "PADEL", "sexe": genre, "page": page, "dateClassement": date_classement},
+        headers={"Content-Type": "application/json", "Referer": "https://tenup.fft.fr/classement-padel"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _parse_item(item):
+    """Parse one FFT API player entry into a (nom, prenom, nat, rang, points, evolution,
+    nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip) tuple."""
+    nom = (item.get("nom") or "").upper().strip()
+    prenom = (item.get("prenom") or "").strip()
+    nat = item.get("nationalite") or ""
+    rang = item.get("position")
+
+    # Anonymous player: no name returned by API.
+    # Use idCrm (or position) as unique identifier to avoid UNIQUE constraint conflicts.
+    est_anonyme = not bool(nom)
+    if est_anonyme:
+        id_crm = item.get("idCrm") or rang
+        nom = f"ANONYME_{id_crm}"
+        prenom = ""
+
+    points = item.get("points") or 0
+    evolution = str(item.get("evolution") or "=")
+    nb_tournois = item.get("nombreTournoisJoues") or 0
+    ligue = item.get("ligue") or ""
+    meilleur = item.get("meilleurClassement") or rang
+    est_assimile = item.get("assimilation", False)
+    age = item.get("ageSportif")  # ageSportif = real age, categorieAge = code
+    club = item.get("club") or ""
+    classement_fip = item.get("classementFip") or None
+    return nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip
+
+
 def import_from_api(mois_str=None, serie=None):
-    """Import data from FFT Ten'Up API (v2)."""
+    """Import data from FFT Ten'Up API (v2). Blocking — fine for CLI/local use,
+    but too slow for a single serverless request once a month has 100k+ players.
+    See start_import_job()/run_import_step() for the chunked equivalent used by the API."""
     if not HAS_REQUESTS:
         print("ERROR: 'requests' library not installed. Run: pip install requests")
         return
@@ -147,20 +188,8 @@ def import_from_api(mois_str=None, serie=None):
         with get_db() as conn:
             classement_rows = []
             while True:
-                payload = {
-                    "pratique": "PADEL",
-                    "sexe": s,
-                    "page": page,
-                    "dateClassement": date_classement,
-                }
                 try:
-                    resp = requests.post(
-                        API_URL, json=payload,
-                        headers={"Content-Type": "application/json", "Referer": "https://tenup.fft.fr/classement-padel"},
-                        timeout=30,
-                    )
-                    resp.raise_for_status()
-                    data = resp.json()
+                    data = _fetch_page(s, page, date_classement)
                 except Exception as e:
                     print(f"  Error on page {page}: {e}")
                     break
@@ -170,32 +199,9 @@ def import_from_api(mois_str=None, serie=None):
                     break
 
                 for item in items:
-                    nom = (item.get("nom") or "").upper().strip()
-                    prenom = (item.get("prenom") or "").strip()
-                    genre = s
-                    nat = item.get("nationalite") or ""
-                    rang = item.get("position")
-
-                    # Anonymous player: no name returned by API
-                    # Use idCrm (or position) as unique identifier to avoid UNIQUE constraint conflicts
-                    est_anonyme = not bool(nom)
-                    if est_anonyme:
-                        id_crm = item.get("idCrm") or rang
-                        nom = f"ANONYME_{id_crm}"
-                        prenom = ""
-
-                    joueur_id = upsert_joueur(conn, nom, prenom, genre, nat)
-
-                    points = item.get("points") or 0
-                    evolution = item.get("evolution") or "="
-                    nb_tournois = item.get("nombreTournoisJoues") or 0
-                    ligue = item.get("ligue") or ""
-                    meilleur = item.get("meilleurClassement") or rang
-                    est_assimile = item.get("assimilation", False)
-                    age = item.get("ageSportif")  # ageSportif = real age, categorieAge = code
-                    club = item.get("club") or ""
-                    classement_fip = item.get("classementFip") or None
-                    classement_rows.append((joueur_id, mois_str, rang, points, str(evolution), nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s, club, classement_fip))
+                    nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip = _parse_item(item)
+                    joueur_id = upsert_joueur(conn, nom, prenom, s, nat)
+                    classement_rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s, club, classement_fip))
 
                 total_imported += len(items)
                 total_api = data.get("total", 0)
@@ -211,12 +217,42 @@ def import_from_api(mois_str=None, serie=None):
             print(f"  [OK] {total_imported} {s} imported for {mois_str}")
 
 
+def _probe_date_has_data(date_classement):
+    try:
+        data = _fetch_page("H", 1, date_classement)
+    except Exception:
+        return False
+    return bool(data.get("joueurs"))
+
+
+def _find_date_classement_for_month(mois_str):
+    """Find the FFT dateClassement that actually has data for a month.
+
+    Normally the first Tuesday, but FFT occasionally publishes a day or two
+    later (seen for 2026-06: Wednesday the 3rd instead of Tuesday the 2nd).
+    Returns None if no date in the month has data yet.
+    """
+    if mois_str in DATE_CLASSEMENT_MAP:
+        candidate = DATE_CLASSEMENT_MAP[mois_str]
+        return candidate if _probe_date_has_data(candidate) else None
+
+    base_date = datetime.date.fromisoformat(get_date_classement(mois_str))
+    for offset in (0, 1, 2, 3, -1):
+        candidate_date = base_date + datetime.timedelta(days=offset)
+        if candidate_date.strftime("%Y-%m") != mois_str:
+            continue
+        candidate = candidate_date.isoformat()
+        if _probe_date_has_data(candidate):
+            return candidate
+    return None
+
+
 def check_new_months_available():
     """Probe the FFT API for months newer than the latest month in our DB.
 
-    Returns a list of YYYY-MM strings whose dateClassement is in the past
-    and for which the API returns at least one player. Stops at the first
-    month that has no data (avoids wasted requests on far-future months).
+    Returns a list of {"mois": "YYYY-MM", "date_classement": "YYYY-MM-DD"} for
+    each month found available, in order. Stops at the first month with no
+    data yet (avoids wasted requests on far-future months).
     """
     if not HAS_REQUESTS:
         return []
@@ -238,34 +274,141 @@ def check_new_months_available():
         if m > 12:
             m = 1
             y += 1
-        candidate = f"{y}-{m:02d}"
-        date_classement = get_date_classement(candidate)
-        if datetime.date.fromisoformat(date_classement) > today:
+        candidate_mois = f"{y}-{m:02d}"
+        naive_date = get_date_classement(candidate_mois)
+        if datetime.date.fromisoformat(naive_date) > today:
             break
-        try:
-            resp = requests.post(
-                API_URL,
-                json={
-                    "pratique": "PADEL",
-                    "sexe": "H",
-                    "page": 1,
-                    "dateClassement": date_classement,
-                },
-                headers={
-                    "Content-Type": "application/json",
-                    "Referer": "https://tenup.fft.fr/classement-padel",
-                },
-                timeout=15,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception:
+        date_classement = _find_date_classement_for_month(candidate_mois)
+        if not date_classement:
             break
-        if data.get("joueurs"):
-            new_months.append(candidate)
-        else:
-            break
+        new_months.append({"mois": candidate_mois, "date_classement": date_classement})
     return new_months
+
+
+# ── Chunked import job (for the "Import donnees" button) ─────────────────
+#
+# A single serverless request can't paginate through 100k+ players per
+# gender before Vercel's function timeout. Instead, progress is persisted in
+# the import_job table (singleton row, id=1) and advanced a bounded number
+# of pages at a time by run_import_step(), which the frontend calls
+# repeatedly until the job reports "done".
+
+def _get_job(conn):
+    row = conn.execute("SELECT * FROM import_job WHERE id=1").fetchone()
+    return dict(row) if row else None
+
+
+def get_import_job_status():
+    with get_db() as conn:
+        job = _get_job(conn)
+    if not job:
+        return {"status": "idle"}
+    job["months"] = json.loads(job["months_json"])
+    del job["months_json"]
+    return job
+
+
+def start_import_job():
+    """Probe FFT for new months and (re)start the chunked job if any are found."""
+    with get_db() as conn:
+        job = _get_job(conn)
+        if job and job["status"] == "running":
+            return {"status": "running", "already_running": True}
+
+    new_months = check_new_months_available()
+    if not new_months:
+        return {"status": "up_to_date"}
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO import_job (id, months_json, month_index, genre, page, total_api, imported_count, status, error, updated_at)
+               VALUES (1, ?, 0, 'H', 1, NULL, 0, 'running', NULL, datetime('now'))
+               ON CONFLICT(id) DO UPDATE SET
+                 months_json=excluded.months_json, month_index=0, genre='H', page=1,
+                 total_api=NULL, imported_count=0, status='running', error=NULL,
+                 updated_at=datetime('now')""",
+            (json.dumps(new_months),),
+        )
+        conn.commit()
+    return {"status": "running", "months": [m["mois"] for m in new_months]}
+
+
+def run_import_step(max_pages=20):
+    """Process up to max_pages FFT pages for the running job. Call repeatedly
+    (e.g. from the frontend, every request) until status is no longer 'running'."""
+    if not HAS_REQUESTS:
+        return {"status": "error", "error": "requests non installe"}
+
+    with get_db() as conn:
+        job = _get_job(conn)
+        if not job or job["status"] != "running":
+            return {"status": job["status"] if job else "idle"}
+
+        months = json.loads(job["months_json"])
+        month_index = job["month_index"]
+        genre = job["genre"]
+        page = job["page"]
+        total_api = job["total_api"]
+        imported_count = job["imported_count"]
+
+        pages_done = 0
+        try:
+            while pages_done < max_pages and month_index < len(months):
+                mois_str = months[month_index]["mois"]
+                date_classement = months[month_index]["date_classement"]
+                data = _fetch_page(genre, page, date_classement)
+                items = data.get("joueurs", [])
+
+                if not items:
+                    if genre == "H":
+                        genre, page, total_api, imported_count = "F", 1, None, 0
+                    else:
+                        month_index += 1
+                        genre, page, total_api, imported_count = "H", 1, None, 0
+                    pages_done += 1
+                    continue
+
+                rows = []
+                for item in items:
+                    nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip = _parse_item(item)
+                    joueur_id = upsert_joueur(conn, nom, prenom, genre, nat)
+                    rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, genre, club, classement_fip))
+
+                bulk_upsert_classements(conn, rows)
+                total_api = data.get("total", total_api)
+                imported_count += len(items)
+                page += 1
+                pages_done += 1
+
+                conn.execute(
+                    """UPDATE import_job SET month_index=?, genre=?, page=?, total_api=?,
+                       imported_count=?, updated_at=datetime('now') WHERE id=1""",
+                    (month_index, genre, page, total_api, imported_count),
+                )
+                conn.commit()
+
+            if month_index >= len(months):
+                conn.execute("UPDATE import_job SET status='done', updated_at=datetime('now') WHERE id=1")
+                conn.commit()
+                return {"status": "done", "months": [m["mois"] for m in months]}
+
+            return {
+                "status": "running",
+                "mois": months[month_index]["mois"],
+                "genre": genre,
+                "page": page,
+                "total_api": total_api,
+                "imported": imported_count,
+                "month_index": month_index,
+                "total_months": len(months),
+            }
+        except Exception as e:
+            conn.execute(
+                "UPDATE import_job SET status='error', error=?, updated_at=datetime('now') WHERE id=1",
+                (str(e),),
+            )
+            conn.commit()
+            return {"status": "error", "error": str(e)}
 
 
 def import_from_csv(filepath):

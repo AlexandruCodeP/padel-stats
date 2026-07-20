@@ -102,6 +102,22 @@ def init_db():
         );
 
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+        -- Singleton row (id=1) tracking the chunked FFT import job's progress,
+        -- so it can be resumed across the many short requests a serverless
+        -- function requires instead of one long-running call.
+        CREATE TABLE IF NOT EXISTS import_job (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            months_json TEXT NOT NULL,
+            month_index INTEGER NOT NULL DEFAULT 0,
+            genre TEXT NOT NULL DEFAULT 'H',
+            page INTEGER NOT NULL DEFAULT 1,
+            total_api INTEGER,
+            imported_count INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'idle',
+            error TEXT,
+            updated_at TEXT
+        );
         """)
         # Migrations for existing DBs
         for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT"), ("classement_fip", "INTEGER")]:

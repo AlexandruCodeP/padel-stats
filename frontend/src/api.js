@@ -29,7 +29,68 @@ export const getClassementExport = (mois, genre) => {
     if (genre) params.set('genre', genre);
     return fetchJSON(`/classement/${mois}/export?${params}`);
 };
-export const importNewData = () => fetchJSON('/import/check-new', { method: 'POST' });
+const startImportJob = () => fetchJSON('/import/start', { method: 'POST' });
+const stepImportJob = () => fetchJSON('/import/step', { method: 'POST' });
+export const getImportJobStatus = () => fetchJSON('/import/status');
+const startSync = () => fetchJSON('/import/sync', { method: 'POST' });
+const getSyncStatus = () => fetchJSON('/import/sync');
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const formatMoisLabel = (m) => {
+    if (!m) return '';
+    const [y, mo] = m.split('-');
+    const months = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    return `${months[parseInt(mo)]} ${y}`;
+};
+
+// Drives the full "check FFT -> import in chunks -> sync to GitHub" flow,
+// calling onProgress(text) at each step so the caller can show a live status.
+// Returns { imported: string[] } (months that were imported, possibly empty).
+export async function runImportFlow(onProgress) {
+    const start = await startImportJob();
+    if (start.status === 'up_to_date') {
+        return { imported: [] };
+    }
+
+    // Poll /import/step until the job is no longer running (also covers a
+    // job that was already running from a previous session/cron trigger).
+    let result = start;
+    while (result.status === 'running') {
+        if (result.mois) {
+            const pct = result.total_api ? Math.min(100, Math.round((result.imported / result.total_api) * 100)) : null;
+            const genreLabel = result.genre === 'F' ? 'Femmes' : 'Hommes';
+            onProgress(`${formatMoisLabel(result.mois)} — ${genreLabel}${pct !== null ? ` (${pct}%)` : ''}`);
+        } else {
+            onProgress('Import en cours...');
+        }
+        result = await stepImportJob();
+        await sleep(150);
+    }
+
+    if (result.status === 'error') {
+        throw new Error(result.error || "Erreur pendant l'import");
+    }
+
+    const imported = result.months || [];
+    if (imported.length === 0) {
+        return { imported };
+    }
+
+    // Persist the update: recompress + push to GitHub so it survives a cold start.
+    onProgress('Sauvegarde des donnees...');
+    let sync = await startSync();
+    while (sync.status === 'running') {
+        onProgress(sync.detail || 'Sauvegarde des donnees...');
+        await sleep(1000);
+        sync = await getSyncStatus();
+    }
+    if (sync.status === 'error') {
+        throw new Error(sync.detail || 'Erreur lors de la sauvegarde');
+    }
+
+    return { imported };
+}
 export const getJoueur = (id) => fetchJSON(`/joueur/${id}`);
 export const rechercher = (q, genre, limit = 20) => {
     const params = new URLSearchParams({ q, limit });

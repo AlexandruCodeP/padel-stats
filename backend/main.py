@@ -155,32 +155,59 @@ def admin_scheduler_info():
     return {"running": scheduler.running, "jobs": jobs}
 
 
-@app.post("/import/check-new", tags=["import"])
-def import_check_new():
-    """Check FFT Ten'Up for months newer than our latest data; import them.
+@app.post("/import/start", tags=["import"])
+def import_start():
+    """Probe FFT Ten'Up for new months and (re)start the chunked import job.
 
-    Synchronous — frontend shows a loading state until completion.
+    Fast — just enqueues. Call POST /import/step repeatedly afterwards to
+    actually advance it, and GET /import/status to check/resume progress.
     """
-    from import_data import check_new_months_available, import_from_api
+    from import_data import start_import_job
     try:
-        new_months = check_new_months_available()
+        return start_import_job()
     except Exception as e:
         logger.error(f"[Import] Probe failed: {e}")
         raise HTTPException(status_code=502, detail="Impossible de contacter Ten'Up")
-    imported = []
-    for m in new_months:
-        try:
-            import_from_api(m)
-            imported.append(m)
-        except Exception as e:
-            logger.error(f"[Import] Failed for {m}: {e}")
-            break
-    return {"imported": imported, "checked_up_to": new_months[-1] if new_months else None}
+
+
+@app.post("/import/step", tags=["import"])
+def import_step():
+    """Advance the running import job by a bounded number of FFT pages.
+    Safe to call repeatedly (e.g. every request from the frontend) until the
+    returned status is no longer 'running'."""
+    from import_data import run_import_step
+    return run_import_step()
+
+
+@app.get("/import/status", tags=["import"])
+def import_status():
+    """Current import job state, so the frontend can resume polling after a
+    page reload instead of losing track of an in-progress import."""
+    from import_data import get_import_job_status
+    return get_import_job_status()
+
+
+@app.post("/import/sync", tags=["import"])
+def import_sync():
+    """Start (or report progress on) recompressing the DB and pushing it to
+    GitHub, so the newly imported months survive a cold start / redeploy.
+    Runs in a background thread — call GET /import/sync repeatedly to poll."""
+    import github_sync
+    return github_sync.start_sync()
+
+
+@app.get("/import/sync", tags=["import"])
+def import_sync_status():
+    import github_sync
+    return github_sync.get_sync_status()
 
 
 @app.get("/cron/import", tags=["cron"])
 def cron_import(request: Request):
-    """Vercel Cron Job endpoint — triggers monthly FFT import on first Tuesday."""
+    """Vercel Cron Job endpoint — enqueues the monthly FFT import on first Tuesday.
+
+    Only starts the job; a visitor's browser advances it via /import/step the
+    next time the site is open (see the frontend's auto-resume-on-load)."""
     auth = request.headers.get("authorization", "")
     cron_secret = os.environ.get("CRON_SECRET", "")
     if cron_secret and auth != f"Bearer {cron_secret}":
@@ -189,8 +216,8 @@ def cron_import(request: Request):
     today = datetime.date.today()
     if today.day > 7:
         return {"status": "skipped", "reason": "Not first Tuesday of month"}
-    _auto_import_month()
-    return {"status": "ok"}
+    from import_data import start_import_job
+    return start_import_job()
 
 
 # ── Base endpoints ────────────────────────────────────────────────────────

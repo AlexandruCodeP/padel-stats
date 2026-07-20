@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Users, User, Trophy, Calendar, FileDown, Loader2, Globe, DownloadCloud } from 'lucide-react';
-import { getStats, getMois, getClassement, getClassementExport, importNewData } from '../api';
+import { getStats, getMois, getClassement, getClassementExport, getImportJobStatus, runImportFlow } from '../api';
 import KPICard from '../components/KPICard';
 import PlayerCard from '../components/PlayerCard';
 import PdfWorker from '../workers/pdfExport.worker.js?worker';
@@ -17,6 +17,8 @@ export default function Classement() {
     const [exporting, setExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState('');
     const [importing, setImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState('');
+    const [importResult, setImportResult] = useState('');
     const workerRef = useRef(null);
 
     useEffect(() => {
@@ -25,6 +27,13 @@ export default function Classement() {
             setMoisList(m);
             if (m.length > 0) setMois(m[0].mois);
         });
+
+        // If a job was already started (monthly cron, or a previous session
+        // that got interrupted), resume driving it instead of leaving it stuck.
+        getImportJobStatus().then(job => {
+            if (job.status === 'running') runImport();
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -46,14 +55,20 @@ export default function Classement() {
         return `${months[parseInt(mo)]} ${y}`;
     };
 
-    const handleImport = async () => {
+    const showImportResult = (message) => {
+        setImportResult(message);
+        setTimeout(() => setImportResult(''), 6000);
+    };
+
+    const runImport = async () => {
         if (importing) return;
         setImporting(true);
+        setImportProgress('Verification sur Ten’Up...');
         try {
-            const result = await importNewData();
-            if (result.imported && result.imported.length > 0) {
+            const result = await runImportFlow(setImportProgress);
+            if (result.imported.length > 0) {
                 const labels = result.imported.map(formatMoisLabel).join(', ');
-                alert(`Import termine : ${labels}`);
+                showImportResult(`Import termine : ${labels}`);
                 const [s, m] = await Promise.all([getStats(), getMois()]);
                 setStats(s);
                 setMoisList(m);
@@ -62,13 +77,14 @@ export default function Classement() {
                     setPage(0);
                 }
             } else {
-                alert('Aucune nouvelle donnee disponible sur Ten’Up.');
+                showImportResult('Aucune nouvelle donnee disponible sur Ten’Up.');
             }
         } catch (err) {
             console.error('Import error:', err);
-            alert("Erreur lors de l'import des donnees. Veuillez reessayer.");
+            showImportResult("Erreur lors de l'import des donnees. Veuillez reessayer.");
         } finally {
             setImporting(false);
+            setImportProgress('');
         }
     };
 
@@ -194,14 +210,15 @@ export default function Classement() {
                     </button>
 
                     <button
-                        onClick={handleImport}
+                        onClick={runImport}
                         disabled={importing}
+                        title={importing ? importProgress : undefined}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white text-text-secondary border border-border hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {importing ? (
                             <>
                                 <Loader2 size={15} className="animate-spin" />
-                                Import en cours...
+                                {importProgress || 'Import en cours...'}
                             </>
                         ) : (
                             <>
@@ -210,6 +227,10 @@ export default function Classement() {
                             </>
                         )}
                     </button>
+
+                    {importResult && (
+                        <span className="text-sm text-text-secondary">{importResult}</span>
+                    )}
 
                     <button
                         onClick={exportPDF}
