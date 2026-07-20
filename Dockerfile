@@ -29,8 +29,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/main.py backend/database.py backend/config.py backend/auth.py backend/import_data.py ./
 
 # Database (compressed in repo, decompress at build)
-COPY backend/padel_stats.db.gz ./
-RUN gunzip padel_stats.db.gz
+COPY backend/padel_stats.db.xz ./
+RUN python3 -c "import lzma,shutil; shutil.copyfileobj(lzma.open('padel_stats.db.xz','rb'), open('padel_stats.db','wb'))" \
+    && rm padel_stats.db.xz
 
 # Frontend static files
 COPY --from=frontend-builder /app/frontend/dist ./static
