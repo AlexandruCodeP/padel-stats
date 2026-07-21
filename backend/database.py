@@ -3,9 +3,9 @@ Padel Stats France — Database module
 SQLite schema, CRUD, and analytics queries.
 """
 import sqlite3
-import lzma
 import shutil
 import os
+import zstandard as zstd
 from contextlib import contextmanager
 
 _VERCEL = bool(os.environ.get("VERCEL"))
@@ -13,7 +13,12 @@ _BACKEND_DIR = os.path.dirname(__file__)
 
 
 def _resolve_db_path() -> str:
-    """Resolve DB path, decompressing to /tmp on Vercel if needed."""
+    """Resolve DB path, decompressing to /tmp on Vercel if needed.
+
+    Uses zstandard rather than lzma: lzma's _lzma C extension needs liblzma,
+    which isn't present on Vercel's Python runtime (import crashes the whole
+    app). zstandard's wheel bundles its own libzstd, no system dependency.
+    """
     explicit = os.environ.get("DATABASE_PATH")
     if explicit:
         return explicit
@@ -21,9 +26,9 @@ def _resolve_db_path() -> str:
     if _VERCEL:
         tmp_db = "/tmp/padel_stats.db"
         if not os.path.exists(tmp_db):
-            src = os.path.join(_BACKEND_DIR, "padel_stats.db.xz")
-            with lzma.open(src, "rb") as f_in, open(tmp_db, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
+            src = os.path.join(_BACKEND_DIR, "padel_stats.db.zst")
+            with open(src, "rb") as f_in, open(tmp_db, "wb") as f_out:
+                zstd.ZstdDecompressor().copy_stream(f_in, f_out)
         return tmp_db
 
     return os.path.join(_BACKEND_DIR, "padel_stats.db")

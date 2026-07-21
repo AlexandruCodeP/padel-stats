@@ -4,18 +4,22 @@ Recompresses the live DB and pushes it to the repo so the next cold start
 (and the next Vercel deployment) picks up newly imported months, instead of
 losing them the moment the serverless instance goes cold.
 
-Compressing the full DB at the best ratio (lzma preset 6) takes minutes, far
-longer than a single serverless request should run. It runs in a background
-thread instead, driven forward across several short /import/sync-status
-polls from the frontend while the instance stays warm.
+Compressing the full DB at a high ratio takes minutes, far longer than a
+single serverless request should run. It runs in a background thread
+instead, driven forward across several short /import/sync-status polls
+from the frontend while the instance stays warm.
+
+Uses zstandard rather than lzma: lzma's _lzma C extension needs liblzma,
+which isn't present on Vercel's Python runtime. zstandard's wheel bundles
+its own libzstd, no system dependency — see database.py for the same fix
+on the read side.
 """
 import base64
-import lzma
 import os
-import shutil
 import threading
 
 import requests
+import zstandard as zstd
 
 from config import settings
 
@@ -47,15 +51,15 @@ def start_sync():
 
 def _run_sync():
     from database import DB_PATH
-    tmp_xz = DB_PATH + ".sync.xz"
+    tmp_zst = DB_PATH + ".sync.zst"
     try:
-        with open(DB_PATH, "rb") as f_in, lzma.open(tmp_xz, "wb", preset=6) as f_out:
-            shutil.copyfileobj(f_in, f_out)
+        with open(DB_PATH, "rb") as f_in, open(tmp_zst, "wb") as f_out:
+            zstd.ZstdCompressor(level=22).copy_stream(f_in, f_out)
 
         with _lock:
             _state["detail"] = "Envoi vers GitHub..."
 
-        _push_to_github(tmp_xz)
+        _push_to_github(tmp_zst)
 
         with _lock:
             _state["status"] = "done"
@@ -65,11 +69,11 @@ def _run_sync():
             _state["status"] = "error"
             _state["detail"] = str(e)
     finally:
-        if os.path.exists(tmp_xz):
-            os.remove(tmp_xz)
+        if os.path.exists(tmp_zst):
+            os.remove(tmp_zst)
 
 
-def _push_to_github(xz_path):
+def _push_to_github(zst_path):
     if not settings.github_token:
         raise RuntimeError("GITHUB_TOKEN non configure")
 
@@ -82,7 +86,7 @@ def _push_to_github(xz_path):
     resp = requests.get(url, headers=headers, params={"ref": settings.github_branch}, timeout=30)
     sha = resp.json().get("sha") if resp.status_code == 200 else None
 
-    with open(xz_path, "rb") as f:
+    with open(zst_path, "rb") as f:
         content_b64 = base64.b64encode(f.read()).decode()
 
     payload = {

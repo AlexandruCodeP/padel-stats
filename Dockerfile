@@ -26,12 +26,12 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Backend code
-COPY backend/main.py backend/database.py backend/config.py backend/auth.py backend/import_data.py ./
+COPY backend/main.py backend/database.py backend/config.py backend/auth.py backend/import_data.py backend/github_sync.py ./
 
 # Database (compressed in repo, decompress at build)
-COPY backend/padel_stats.db.xz ./
-RUN python3 -c "import lzma,shutil; shutil.copyfileobj(lzma.open('padel_stats.db.xz','rb'), open('padel_stats.db','wb'))" \
-    && rm padel_stats.db.xz
+COPY backend/padel_stats.db.zst ./
+RUN python3 -c "import zstandard, shutil; shutil.copyfileobj(zstandard.ZstdDecompressor().stream_reader(open('padel_stats.db.zst','rb')), open('padel_stats.db','wb'))" \
+    && rm padel_stats.db.zst
 
 # Frontend static files
 COPY --from=frontend-builder /app/frontend/dist ./static
