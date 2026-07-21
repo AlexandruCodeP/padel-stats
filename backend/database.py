@@ -56,7 +56,15 @@ DB_PATH = _resolve_db_path()
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    # WAL's journal file grows with every write and only shrinks back down
+    # when checkpointed. On Vercel's small, ephemeral /tmp there's no
+    # long-running process to do that, so it just accumulates across
+    # requests on a warm instance until the disk fills up ("database or
+    # disk is full", breaking every endpoint, not just whichever one wrote
+    # last). The plain rollback journal is created and discarded per
+    # transaction instead of accumulating, so use that there; WAL is still
+    # fine on a real persistent disk (local dev, Railway/Docker).
+    conn.execute(f"PRAGMA journal_mode={'DELETE' if _VERCEL else 'WAL'}")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
     conn.execute("PRAGMA mmap_size=268435456")  # 256 MB mmap
