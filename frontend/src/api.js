@@ -33,7 +33,6 @@ const startImportJob = () => fetchJSON('/import/start', { method: 'POST' });
 const stepImportJob = () => fetchJSON('/import/step', { method: 'POST' });
 export const getImportJobStatus = () => fetchJSON('/import/status');
 const startSync = () => fetchJSON('/import/sync', { method: 'POST' });
-const getSyncStatus = () => fetchJSON('/import/sync');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -77,14 +76,10 @@ export async function runImportFlow(onProgress) {
         return { imported };
     }
 
-    // Persist the update: recompress + push to GitHub so it survives a cold start.
-    onProgress('Sauvegarde des donnees...');
-    let sync = await startSync();
-    while (sync.status === 'running') {
-        onProgress(sync.detail || 'Sauvegarde des donnees...');
-        await sleep(1000);
-        sync = await getSyncStatus();
-    }
+    // Persist the update: recompress + push to GitHub so it survives a cold
+    // start. Runs synchronously server-side (typically well under a minute).
+    onProgress('Sauvegarde des donnees (peut prendre une minute)...');
+    const sync = await startSync();
     if (sync.status === 'error') {
         throw new Error(sync.detail || 'Erreur lors de la sauvegarde');
     }

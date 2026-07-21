@@ -3,7 +3,7 @@ Padel Stats France — Database module
 SQLite schema, CRUD, and analytics queries.
 """
 import sqlite3
-import shutil
+import glob as _glob
 import os
 import zstandard as zstd
 from contextlib import contextmanager
@@ -18,6 +18,11 @@ def _resolve_db_path() -> str:
     Uses zstandard rather than lzma: lzma's _lzma C extension needs liblzma,
     which isn't present on Vercel's Python runtime (import crashes the whole
     app). zstandard's wheel bundles its own libzstd, no system dependency.
+
+    The compressed snapshot may be split into several padel_stats.db.zst.aa/ab/...
+    parts (github_sync.py uses a fast, lower compression level to stay within
+    a single request's time budget, which needs splitting to fit GitHub's
+    100MB per-file limit) — reassemble them in order before decompressing.
     """
     explicit = os.environ.get("DATABASE_PATH")
     if explicit:
@@ -26,9 +31,13 @@ def _resolve_db_path() -> str:
     if _VERCEL:
         tmp_db = "/tmp/padel_stats.db"
         if not os.path.exists(tmp_db):
-            src = os.path.join(_BACKEND_DIR, "padel_stats.db.zst")
-            with open(src, "rb") as f_in, open(tmp_db, "wb") as f_out:
-                zstd.ZstdDecompressor().copy_stream(f_in, f_out)
+            parts = sorted(_glob.glob(os.path.join(_BACKEND_DIR, "padel_stats.db.zst.*")))
+            decompressor = zstd.ZstdDecompressor()
+            with open(tmp_db, "wb") as f_out:
+                with decompressor.stream_writer(f_out) as writer:
+                    for part in parts:
+                        with open(part, "rb") as f_in:
+                            writer.write(f_in.read())
         return tmp_db
 
     return os.path.join(_BACKEND_DIR, "padel_stats.db")
