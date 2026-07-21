@@ -142,15 +142,18 @@ def init_db():
 
         -- Singleton row (id=1) tracking the chunked GitHub sync's progress.
         -- Compressing the whole DB at a high ratio takes minutes; each step
-        -- compresses one bounded raw chunk independently and pushes it as
-        -- its own part, so no single request runs long enough to risk a
-        -- serverless timeout.
+        -- compresses one bounded raw chunk and uploads it as a Git blob
+        -- (which doesn't touch the branch, so it can't trigger a Vercel
+        -- deployment on its own). Only the final step assembles all blobs
+        -- into one tree + commit + ref update, so exactly one deployment is
+        -- triggered and it's always built from a fully consistent set.
         CREATE TABLE IF NOT EXISTS sync_job (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             total_size INTEGER NOT NULL,
             chunk_size INTEGER NOT NULL,
             offset INTEGER NOT NULL DEFAULT 0,
             part_index INTEGER NOT NULL DEFAULT 0,
+            blob_shas_json TEXT NOT NULL DEFAULT '[]',
             status TEXT NOT NULL DEFAULT 'idle',
             error TEXT,
             updated_at TEXT
@@ -163,6 +166,11 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass  # Column already exists
+        try:
+            conn.execute("ALTER TABLE sync_job ADD COLUMN blob_shas_json TEXT NOT NULL DEFAULT '[]'")
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
         # Backfill genre from joueurs if needed
         conn.execute("UPDATE classements SET genre = (SELECT genre FROM joueurs WHERE joueurs.id = classements.joueur_id) WHERE genre IS NULL")
         conn.commit()

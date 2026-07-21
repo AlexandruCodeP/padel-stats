@@ -8,18 +8,26 @@ Compressing the whole DB at a high enough ratio to fit the 225MB Vercel
 function bundle takes minutes — too long for one request, and a background
 thread doesn't help: Vercel freezes a function's execution environment
 between invocations, so a thread only gets CPU time during the brief slices
-when a request happens to be in flight.
+when a request happens to be in flight. Progress is instead persisted in
+the sync_job table and advanced one bounded raw chunk at a time by
+run_sync_step(), mirroring how the FFT import itself is chunked.
 
-Instead, progress is persisted in the sync_job table and advanced one
-bounded raw chunk at a time by run_sync_step(), mirroring how the FFT
-import itself is chunked. Each chunk is compressed and pushed to GitHub as
-its own independent part — see database.py for the matching reassembly.
+Each chunk is uploaded as its own Git *blob* — a blob create doesn't touch
+any branch, so it can't trigger a Vercel deployment. Only the final step
+assembles every blob into one tree, one commit, and one branch-ref update,
+so exactly one deployment is triggered and it's always built from a fully
+consistent set of parts. (An earlier version committed each part through
+the Contents API individually — each commit updates the branch ref on its
+own, so partial syncs triggered several overlapping deployments, each
+built from whatever inconsistent mix of old/new parts existed at that
+moment, corrupting the DB. Don't reintroduce per-part commits.)
 
 Uses zstandard rather than lzma: lzma's _lzma C extension needs liblzma,
 which isn't present on Vercel's Python runtime. zstandard's wheel bundles
 its own libzstd, no system dependency.
 """
 import base64
+import json
 import os
 import string
 
@@ -57,12 +65,12 @@ def start_sync():
 
         total_size = os.path.getsize(DB_PATH)
         conn.execute(
-            """INSERT INTO sync_job (id, total_size, chunk_size, offset, part_index, status, error, updated_at)
-               VALUES (1, ?, ?, 0, 0, 'running', NULL, datetime('now'))
+            """INSERT INTO sync_job (id, total_size, chunk_size, offset, part_index, blob_shas_json, status, error, updated_at)
+               VALUES (1, ?, ?, 0, 0, '[]', 'running', NULL, datetime('now'))
                ON CONFLICT(id) DO UPDATE SET
                  total_size=excluded.total_size, chunk_size=excluded.chunk_size,
-                 offset=0, part_index=0, status='running', error=NULL,
-                 updated_at=datetime('now')""",
+                 offset=0, part_index=0, blob_shas_json='[]', status='running',
+                 error=NULL, updated_at=datetime('now')""",
             (total_size, CHUNK_SIZE),
         )
         conn.commit()
@@ -70,7 +78,8 @@ def start_sync():
 
 
 def run_sync_step():
-    """Compress and push one chunk. Call repeatedly until status != 'running'."""
+    """Compress+upload one chunk as a blob, or — once every chunk is done —
+    assemble the final commit. Call repeatedly until status != 'running'."""
     from database import DB_PATH
     with get_db() as conn:
         job = _get_job(conn)
@@ -81,28 +90,30 @@ def run_sync_step():
         total_size = job["total_size"]
         part_index = job["part_index"]
         chunk_size = job["chunk_size"]
+        blob_shas = json.loads(job["blob_shas_json"])
 
         try:
-            with open(DB_PATH, "rb") as f:
-                f.seek(offset)
-                chunk = f.read(chunk_size)
+            if offset < total_size:
+                with open(DB_PATH, "rb") as f:
+                    f.seek(offset)
+                    chunk = f.read(chunk_size)
 
-            if chunk:
                 compressed = zstd.ZstdCompressor(level=COMPRESSION_LEVEL).compress(chunk)
-                _push_part_to_github(part_index, compressed)
+                blob_shas.append(_create_blob(compressed))
                 offset += len(chunk)
                 part_index += 1
                 conn.execute(
-                    "UPDATE sync_job SET offset=?, part_index=?, updated_at=datetime('now') WHERE id=1",
-                    (offset, part_index),
+                    """UPDATE sync_job SET offset=?, part_index=?, blob_shas_json=?,
+                       updated_at=datetime('now') WHERE id=1""",
+                    (offset, part_index, json.dumps(blob_shas)),
                 )
                 conn.commit()
 
             if offset >= total_size:
-                _cleanup_stale_parts(part_index)
+                _finalize_commit(blob_shas)
                 conn.execute("UPDATE sync_job SET status='done', updated_at=datetime('now') WHERE id=1")
                 conn.commit()
-                return {"status": "done", "parts": part_index}
+                return {"status": "done", "parts": len(blob_shas)}
 
             return {"status": "running", "part_index": part_index, "offset": offset, "total_size": total_size}
         except Exception as e:
@@ -127,40 +138,77 @@ def _github_headers():
     }
 
 
-def _push_part_to_github(index, data):
-    path = f"{settings.github_db_path}.{_part_suffix(index)}"
-    url = f"{GITHUB_API}/repos/{settings.github_repo}/contents/{path}"
+def _create_blob(data):
+    """Upload one chunk as a Git blob. Doesn't touch any branch/ref, so it
+    can't trigger a deployment — safe to call from every intermediate step."""
+    url = f"{GITHUB_API}/repos/{settings.github_repo}/git/blobs"
+    resp = requests.post(
+        url, headers=_github_headers(),
+        json={"content": base64.b64encode(data).decode(), "encoding": "base64"},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["sha"]
+
+
+def _finalize_commit(blob_shas):
+    """Build one tree from every part's blob, one commit, and move the
+    branch ref to it in a single update — the only step that can trigger a
+    Vercel deployment, and it always points at a fully consistent set."""
     headers = _github_headers()
+    repo = settings.github_repo
+    branch = settings.github_branch
 
-    resp = requests.get(url, headers=headers, params={"ref": settings.github_branch}, timeout=30)
-    sha = resp.json().get("sha") if resp.status_code == 200 else None
+    ref_resp = requests.get(f"{GITHUB_API}/repos/{repo}/git/refs/heads/{branch}", headers=headers, timeout=30)
+    ref_resp.raise_for_status()
+    base_commit_sha = ref_resp.json()["object"]["sha"]
 
-    payload = {
-        "message": "chore: auto-sync classement DB depuis l'import Ten'Up",
-        "content": base64.b64encode(data).decode(),
-        "branch": settings.github_branch,
-    }
-    if sha:
-        payload["sha"] = sha
+    commit_resp = requests.get(f"{GITHUB_API}/repos/{repo}/git/commits/{base_commit_sha}", headers=headers, timeout=30)
+    commit_resp.raise_for_status()
+    base_tree_sha = commit_resp.json()["tree"]["sha"]
 
-    put_resp = requests.put(url, headers=headers, json=payload, timeout=60)
-    put_resp.raise_for_status()
+    tree = [
+        {"path": f"{settings.github_db_path}.{_part_suffix(i)}", "mode": "100644", "type": "blob", "sha": sha}
+        for i, sha in enumerate(blob_shas)
+    ]
+    tree += _stale_part_deletions(len(blob_shas), headers)
+
+    tree_resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/git/trees", headers=headers,
+        json={"base_tree": base_tree_sha, "tree": tree}, timeout=60,
+    )
+    tree_resp.raise_for_status()
+    new_tree_sha = tree_resp.json()["sha"]
+
+    commit_create_resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/git/commits", headers=headers,
+        json={
+            "message": "chore: auto-sync classement DB depuis l'import Ten'Up",
+            "tree": new_tree_sha,
+            "parents": [base_commit_sha],
+        },
+        timeout=30,
+    )
+    commit_create_resp.raise_for_status()
+    new_commit_sha = commit_create_resp.json()["sha"]
+
+    update_resp = requests.patch(
+        f"{GITHUB_API}/repos/{repo}/git/refs/heads/{branch}", headers=headers,
+        json={"sha": new_commit_sha}, timeout=30,
+    )
+    update_resp.raise_for_status()
 
 
-def _cleanup_stale_parts(final_part_count):
-    """Delete any leftover parts from a previous sync that produced more
-    parts than this one (DB shrinking is rare, but avoids a stale trailing
-    part corrupting the next reassembly)."""
-    headers = _github_headers()
+def _stale_part_deletions(final_part_count, headers):
+    """Tree entries removing any leftover parts from a previous sync that
+    produced more parts than this one (sha=None deletes a path from a tree
+    built with base_tree)."""
+    deletions = []
     for i in range(final_part_count, final_part_count + 10):
         path = f"{settings.github_db_path}.{_part_suffix(i)}"
         url = f"{GITHUB_API}/repos/{settings.github_repo}/contents/{path}"
-        resp = requests.get(url, headers=headers, params={"ref": settings.github_branch}, timeout=30)
+        resp = requests.get(url, headers=headers, params={"ref": settings.github_branch}, timeout=20)
         if resp.status_code != 200:
             break
-        sha = resp.json().get("sha")
-        requests.delete(
-            url, headers=headers,
-            json={"message": "chore: cleanup stale DB part", "sha": sha, "branch": settings.github_branch},
-            timeout=30,
-        )
+        deletions.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+    return deletions
