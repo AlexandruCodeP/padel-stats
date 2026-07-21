@@ -32,12 +32,19 @@ def _resolve_db_path() -> str:
     if _VERCEL:
         tmp_db = "/tmp/padel_stats.db"
         if not os.path.exists(tmp_db):
+            # Write to a temp file and rename into place atomically. If this
+            # process dies mid-write (timeout, OOM, ...), tmp_db itself never
+            # exists in a partial state — otherwise a later request on the
+            # same instance would see it "exists" and skip re-decompressing
+            # a corrupt file forever ("database disk image is malformed").
+            tmp_db_partial = tmp_db + ".partial"
             parts = sorted(_glob.glob(os.path.join(_BACKEND_DIR, "padel_stats.db.zst.*")))
             decompressor = zstd.ZstdDecompressor()
-            with open(tmp_db, "wb") as f_out:
+            with open(tmp_db_partial, "wb") as f_out:
                 for part in parts:
                     with open(part, "rb") as f_in:
                         f_out.write(decompressor.decompress(f_in.read()))
+            os.rename(tmp_db_partial, tmp_db)
         return tmp_db
 
     return os.path.join(_BACKEND_DIR, "padel_stats.db")
