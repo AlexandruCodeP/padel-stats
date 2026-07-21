@@ -32,7 +32,8 @@ export const getClassementExport = (mois, genre) => {
 const startImportJob = () => fetchJSON('/import/start', { method: 'POST' });
 const stepImportJob = () => fetchJSON('/import/step', { method: 'POST' });
 export const getImportJobStatus = () => fetchJSON('/import/status');
-const startSync = () => fetchJSON('/import/sync', { method: 'POST' });
+const startSync = () => fetchJSON('/import/sync/start', { method: 'POST' });
+const stepSync = () => fetchJSON('/import/sync/step', { method: 'POST' });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -76,12 +77,17 @@ export async function runImportFlow(onProgress) {
         return { imported };
     }
 
-    // Persist the update: recompress + push to GitHub so it survives a cold
-    // start. Runs synchronously server-side (typically well under a minute).
-    onProgress('Sauvegarde des donnees (peut prendre une minute)...');
-    const sync = await startSync();
+    // Persist the update: recompress + push to GitHub in chunks, so it
+    // survives a cold start instead of vanishing like June did.
+    let sync = await startSync();
+    while (sync.status === 'running') {
+        const pct = sync.total_size ? Math.min(100, Math.round((sync.offset / sync.total_size) * 100)) : null;
+        onProgress(`Sauvegarde des donnees${pct !== null ? ` (${pct}%)` : '...'}`);
+        sync = await stepSync();
+        await sleep(150);
+    }
     if (sync.status === 'error') {
-        throw new Error(sync.detail || 'Erreur lors de la sauvegarde');
+        throw new Error(sync.error || 'Erreur lors de la sauvegarde');
     }
 
     return { imported };

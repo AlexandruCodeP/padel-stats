@@ -187,16 +187,24 @@ def import_status():
     return get_import_job_status()
 
 
-@app.post("/import/sync", tags=["import"])
-def import_sync():
-    """Start (or report progress on) recompressing the DB and pushing it to
-    GitHub, so the newly imported months survive a cold start / redeploy.
-    Runs in a background thread — call GET /import/sync repeatedly to poll."""
+@app.post("/import/sync/start", tags=["import"])
+def import_sync_start():
+    """Start the chunked GitHub sync (recompress + push), so newly imported
+    months survive a cold start / redeploy. Call POST /import/sync/step
+    repeatedly afterwards to advance it."""
     import github_sync
     return github_sync.start_sync()
 
 
-@app.get("/import/sync", tags=["import"])
+@app.post("/import/sync/step", tags=["import"])
+def import_sync_step():
+    """Advance the running sync by one chunk. Safe to call repeatedly until
+    the returned status is no longer 'running'."""
+    import github_sync
+    return github_sync.run_sync_step()
+
+
+@app.get("/import/sync/status", tags=["import"])
 def import_sync_status():
     import github_sync
     return github_sync.get_sync_status()
