@@ -66,6 +66,14 @@ def get_connection():
     # fine on a real persistent disk (local dev, Railway/Docker).
     conn.execute(f"PRAGMA journal_mode={'DELETE' if _VERCEL else 'WAL'}")
     conn.execute("PRAGMA foreign_keys=ON")
+    # The ~440MB decompressed DB itself already consumes most of Vercel's
+    # small /tmp quota. Large unfiltered aggregations (e.g. GROUP BY across
+    # all of classements) make SQLite spill its sort/group temp b-tree to a
+    # disk file by default, which then has nowhere left to go ("database or
+    # disk is full"). Force that into memory instead — Vercel functions have
+    # 1024MB of RAM, comfortably enough headroom.
+    if _VERCEL:
+        conn.execute("PRAGMA temp_store=MEMORY")
     conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
     conn.execute("PRAGMA mmap_size=268435456")  # 256 MB mmap
     return conn
