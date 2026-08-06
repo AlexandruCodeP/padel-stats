@@ -8,6 +8,7 @@ import os
 import sys
 import random
 import datetime
+import time
 
 # Add parent dir for imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -308,14 +309,25 @@ def get_import_job_status():
     return job
 
 
-def start_import_job():
-    """Probe FFT for new months and (re)start the chunked job if any are found."""
+def start_import_job(force_month=None):
+    """Probe FFT for new months and (re)start the chunked job if any are found.
+
+    force_month (YYYY-MM), if given, re-imports that specific month instead
+    of probing for new ones — for recovering a month that got interrupted
+    partway (upserts are idempotent, so this safely fills in what's missing
+    without re-fetching/duplicating what already succeeded)."""
     with get_db() as conn:
         job = _get_job(conn)
         if job and job["status"] == "running":
             return {"status": "running", "already_running": True}
 
-    new_months = check_new_months_available()
+    if force_month:
+        date_classement = _find_date_classement_for_month(force_month)
+        if not date_classement:
+            return {"status": "error", "error": f"Aucune donnee FFT trouvee pour {force_month}"}
+        new_months = [{"mois": force_month, "date_classement": date_classement}]
+    else:
+        new_months = check_new_months_available()
     if not new_months:
         return {"status": "up_to_date"}
 
@@ -358,6 +370,23 @@ def run_import_step(max_pages=20):
                 date_classement = months[month_index]["date_classement"]
                 data = _fetch_page(genre, page, date_classement)
                 items = data.get("joueurs", [])
+
+                if not items and total_api and imported_count < total_api:
+                    # Empty page before reaching the known total looks like a
+                    # transient FFT hiccup (seen under heavy request volume),
+                    # not genuinely reaching the end — retry a few times
+                    # rather than silently truncating the import.
+                    for _ in range(3):
+                        time.sleep(1)
+                        data = _fetch_page(genre, page, date_classement)
+                        items = data.get("joueurs", [])
+                        if items:
+                            break
+                    if not items:
+                        raise RuntimeError(
+                            f"Reponse vide inattendue pour {mois_str} {genre} page {page} "
+                            f"({imported_count}/{total_api} importes) — relancez l'import."
+                        )
 
                 if not items:
                     if genre == "H":

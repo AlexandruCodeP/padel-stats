@@ -156,15 +156,19 @@ def admin_scheduler_info():
 
 
 @app.post("/import/start", tags=["import"])
-def import_start():
+def import_start(mois: Optional[str] = None):
     """Probe FFT Ten'Up for new months and (re)start the chunked import job.
 
     Fast — just enqueues. Call POST /import/step repeatedly afterwards to
     actually advance it, and GET /import/status to check/resume progress.
+
+    Pass mois=YYYY-MM to force re-importing that specific month even if it
+    already has data — for recovering one that got interrupted or
+    under-imported (upserts are idempotent, so this only fills in gaps).
     """
     from import_data import start_import_job
     try:
-        return start_import_job()
+        return start_import_job(force_month=mois)
     except Exception as e:
         logger.error(f"[Import] Probe failed: {e}")
         raise HTTPException(status_code=502, detail="Impossible de contacter Ten'Up")
