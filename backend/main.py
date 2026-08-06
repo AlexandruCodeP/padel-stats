@@ -88,6 +88,31 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/debug/disk")
+def debug_disk():
+    """Temporary diagnostic: /tmp usage and DB file size on Vercel."""
+    import shutil
+    from database import DB_PATH
+    info = {"db_path": DB_PATH, "db_exists": os.path.exists(DB_PATH)}
+    if os.path.exists(DB_PATH):
+        info["db_size_mb"] = round(os.path.getsize(DB_PATH) / 1024 / 1024, 1)
+    try:
+        usage = shutil.disk_usage("/tmp")
+        info["tmp_total_mb"] = round(usage.total / 1024 / 1024, 1)
+        info["tmp_used_mb"] = round(usage.used / 1024 / 1024, 1)
+        info["tmp_free_mb"] = round(usage.free / 1024 / 1024, 1)
+    except Exception as e:
+        info["disk_usage_error"] = str(e)
+    try:
+        info["tmp_files"] = [
+            {"name": f, "size_mb": round(os.path.getsize(os.path.join("/tmp", f)) / 1024 / 1024, 2)}
+            for f in os.listdir("/tmp")
+        ]
+    except Exception as e:
+        info["listdir_error"] = str(e)
+    return info
+
+
 app.include_router(auth_router)
 
 
