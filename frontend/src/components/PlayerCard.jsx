@@ -90,8 +90,18 @@ export default function PlayerCard({ joueur, rank }) {
                 {/* ── Right: points / badge ── */}
                 <div className="text-right shrink-0">
                     {joueur.points != null && joueur.points > 0 ? (
-                        <div className="font-bold text-text font-data text-sm">
-                            {joueur.points.toLocaleString('fr-FR')} pts
+                        <div>
+                            <div className="font-bold text-text font-data text-sm">
+                                {joueur.points.toLocaleString('fr-FR')} pts
+                            </div>
+                            {joueur.est_assimile && (
+                                <div
+                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-block mt-0.5"
+                                    style={{ border: '1.5px solid #F59E0B', color: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.07)' }}
+                                >
+                                    Assimilé{joueur.genre === 'F' ? 'e' : ''}
+                                </div>
+                            )}
                         </div>
                     ) : joueur.est_assimile ? (
                         /* Outline pill badge */
@@ -99,7 +109,7 @@ export default function PlayerCard({ joueur, rank }) {
                             className="text-xs font-semibold px-2 py-0.5 rounded-full"
                             style={{ border: '1.5px solid #F59E0B', color: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.07)' }}
                         >
-                            Assimilé
+                            Assimilé{joueur.genre === 'F' ? 'e' : ''}
                         </div>
                     ) : joueur.rang <= 10 ? (
                         <div
