@@ -26,20 +26,11 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Backend code
-COPY backend/main.py backend/database.py backend/config.py backend/auth.py backend/import_data.py backend/github_sync.py ./
+COPY backend/main.py backend/database.py backend/config.py backend/auth.py backend/import_data.py backend/turso_adapter.py ./
 
-# Database: split into <100MB padel_stats.db.zst.aa/ab/... parts, each one
-# independently compressed (see github_sync.py) — decompress each on its own
-# and concatenate the raw output, in order.
-COPY backend/padel_stats.db.zst.* ./
-RUN python3 -c "\
-import glob, zstandard; \
-parts = sorted(glob.glob('padel_stats.db.zst.*')); \
-d = zstandard.ZstdDecompressor(); \
-out = open('padel_stats.db', 'wb'); \
-[out.write(d.decompress(open(p, 'rb').read())) for p in parts]; \
-out.close()" \
-    && rm padel_stats.db.zst.*
+# No local DB file — data lives in Turso (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN
+# env vars at runtime, see database.py). Falls back to a local SQLite file
+# only if those aren't set, e.g. for ad-hoc local testing of this image.
 
 # Frontend static files
 COPY --from=frontend-builder /app/frontend/dist ./static

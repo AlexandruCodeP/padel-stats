@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Code source (sans la DB — montée via volume)
-COPY main.py database.py config.py auth.py import_data.py ./
+# Code source (sans la DB — montée via volume, ou Turso si configure)
+COPY main.py database.py config.py auth.py import_data.py turso_adapter.py ./
 
 EXPOSE 8001
 

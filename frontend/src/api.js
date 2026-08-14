@@ -32,8 +32,6 @@ export const getClassementExport = (mois, genre) => {
 const startImportJob = () => fetchJSON('/import/start', { method: 'POST' });
 const stepImportJob = () => fetchJSON('/import/step', { method: 'POST' });
 export const getImportJobStatus = () => fetchJSON('/import/status');
-const startSync = () => fetchJSON('/import/sync/start', { method: 'POST' });
-const stepSync = () => fetchJSON('/import/sync/step', { method: 'POST' });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -44,8 +42,11 @@ const formatMoisLabel = (m) => {
     return `${months[parseInt(mo)]} ${y}`;
 };
 
-// Drives the full "check FFT -> import in chunks -> sync to GitHub" flow,
-// calling onProgress(text) at each step so the caller can show a live status.
+// Drives the "check FFT -> import in chunks" flow, calling onProgress(text)
+// at each step so the caller can show a live status. Writes land directly
+// in Turso as each chunk imports, so there's no separate persistence step —
+// unlike the old bundled-SQLite-file setup, nothing needs re-syncing
+// afterwards for the data to survive a cold start.
 // Returns { imported: string[] } (months that were imported, possibly empty).
 export async function runImportFlow(onProgress) {
     const start = await startImportJob();
@@ -72,25 +73,7 @@ export async function runImportFlow(onProgress) {
         throw new Error(result.error || "Erreur pendant l'import");
     }
 
-    const imported = result.months || [];
-    if (imported.length === 0) {
-        return { imported };
-    }
-
-    // Persist the update: recompress + push to GitHub in chunks, so it
-    // survives a cold start instead of vanishing like June did.
-    let sync = await startSync();
-    while (sync.status === 'running') {
-        const pct = sync.total_size ? Math.min(100, Math.round((sync.offset / sync.total_size) * 100)) : null;
-        onProgress(`Sauvegarde des donnees${pct !== null ? ` (${pct}%)` : '...'}`);
-        sync = await stepSync();
-        await sleep(150);
-    }
-    if (sync.status === 'error') {
-        throw new Error(sync.error || 'Erreur lors de la sauvegarde');
-    }
-
-    return { imported };
+    return { imported: result.months || [] };
 }
 export const getJoueur = (id) => fetchJSON(`/joueur/${id}`);
 export const rechercher = (q, genre, limit = 20) => {

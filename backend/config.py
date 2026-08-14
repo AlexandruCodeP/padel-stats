@@ -25,11 +25,14 @@ class Settings(BaseSettings):
     # ── Environment ───────────────────────────────────────────────────────
     environment: str = "development"
 
-    # ── GitHub sync (persists imported months across cold starts) ──────────
-    github_token: str = ""
-    github_repo: str = "AlexandruCodeP/padel-stats"
-    github_db_path: str = "backend/padel_stats.db.zst"
-    github_branch: str = "master"
+    # ── Turso (production DB on Vercel — no persistent disk there for a
+    # bundled SQLite file, see database.py) ─────────────────────────────────
+    # Read directly via os.environ in database.py, not through this Settings
+    # object, since that module has to resolve the connection before
+    # anything else even starts importing — documented here regardless so
+    # .env.example / this file stays the source of truth for what's configurable.
+    turso_database_url: str = ""
+    turso_auth_token: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

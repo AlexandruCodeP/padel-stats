@@ -88,31 +88,6 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/debug/disk")
-def debug_disk():
-    """Temporary diagnostic: /tmp usage and DB file size on Vercel."""
-    import shutil
-    from database import DB_PATH
-    info = {"db_path": DB_PATH, "db_exists": os.path.exists(DB_PATH)}
-    if os.path.exists(DB_PATH):
-        info["db_size_mb"] = round(os.path.getsize(DB_PATH) / 1024 / 1024, 1)
-    try:
-        usage = shutil.disk_usage("/tmp")
-        info["tmp_total_mb"] = round(usage.total / 1024 / 1024, 1)
-        info["tmp_used_mb"] = round(usage.used / 1024 / 1024, 1)
-        info["tmp_free_mb"] = round(usage.free / 1024 / 1024, 1)
-    except Exception as e:
-        info["disk_usage_error"] = str(e)
-    try:
-        info["tmp_files"] = [
-            {"name": f, "size_mb": round(os.path.getsize(os.path.join("/tmp", f)) / 1024 / 1024, 2)}
-            for f in os.listdir("/tmp")
-        ]
-    except Exception as e:
-        info["listdir_error"] = str(e)
-    return info
-
-
 app.include_router(auth_router)
 
 
@@ -216,27 +191,6 @@ def import_status():
     return get_import_job_status()
 
 
-@app.post("/import/sync/start", tags=["import"])
-def import_sync_start():
-    """Start the chunked GitHub sync (recompress + push), so newly imported
-    months survive a cold start / redeploy. Call POST /import/sync/step
-    repeatedly afterwards to advance it."""
-    import github_sync
-    return github_sync.start_sync()
-
-
-@app.post("/import/sync/step", tags=["import"])
-def import_sync_step():
-    """Advance the running sync by one chunk. Safe to call repeatedly until
-    the returned status is no longer 'running'."""
-    import github_sync
-    return github_sync.run_sync_step()
-
-
-@app.get("/import/sync/status", tags=["import"])
-def import_sync_status():
-    import github_sync
-    return github_sync.get_sync_status()
 
 
 @app.get("/cron/import", tags=["cron"])

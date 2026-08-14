@@ -5,75 +5,44 @@ SQLite schema, CRUD, and analytics queries.
 import sqlite3
 import glob as _glob
 import os
-import zstandard as zstd
 from contextlib import contextmanager
 
-_VERCEL = bool(os.environ.get("VERCEL"))
 _BACKEND_DIR = os.path.dirname(__file__)
+_TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
+_TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
+_USE_TURSO = bool(_TURSO_URL and _TURSO_TOKEN)
+_VERCEL = bool(os.environ.get("VERCEL"))
 
 
 def _resolve_db_path() -> str:
-    """Resolve DB path, decompressing to /tmp on Vercel if needed.
-
-    Uses zstandard rather than lzma: lzma's _lzma C extension needs liblzma,
-    which isn't present on Vercel's Python runtime (import crashes the whole
-    app). zstandard's wheel bundles its own libzstd, no system dependency.
-
-    The compressed snapshot is split into several padel_stats.db.zst.aa/ab/...
-    parts (github_sync.py compresses one bounded raw chunk at a time so no
-    single sync request risks a serverless timeout, and pushes each as its
-    own independently-compressed part) — decompress each one on its own and
-    concatenate the raw output, in order.
-    """
+    """Local SQLite file path — used for local dev and Railway/Docker, which
+    have a real persistent disk. Not used at all when Turso is configured
+    (see get_connection()); Vercel has no persistent disk of its own to put
+    a file on, which is the whole reason this project moved to Turso."""
     explicit = os.environ.get("DATABASE_PATH")
     if explicit:
         return explicit
-
-    if _VERCEL:
-        tmp_db = "/tmp/padel_stats.db"
-        if not os.path.exists(tmp_db):
-            # Write to a temp file and rename into place atomically. If this
-            # process dies mid-write (timeout, OOM, ...), tmp_db itself never
-            # exists in a partial state — otherwise a later request on the
-            # same instance would see it "exists" and skip re-decompressing
-            # a corrupt file forever ("database disk image is malformed").
-            tmp_db_partial = tmp_db + ".partial"
-            parts = sorted(_glob.glob(os.path.join(_BACKEND_DIR, "padel_stats.db.zst.*")))
-            decompressor = zstd.ZstdDecompressor()
-            with open(tmp_db_partial, "wb") as f_out:
-                for part in parts:
-                    with open(part, "rb") as f_in:
-                        f_out.write(decompressor.decompress(f_in.read()))
-            os.rename(tmp_db_partial, tmp_db)
-        return tmp_db
-
     return os.path.join(_BACKEND_DIR, "padel_stats.db")
 
 
-DB_PATH = _resolve_db_path()
+DB_PATH = None if _USE_TURSO else _resolve_db_path()
 
 
 def get_connection():
+    if _USE_TURSO:
+        import turso_adapter
+        return turso_adapter.connect(_TURSO_URL, _TURSO_TOKEN)
+
+    if _VERCEL:
+        raise RuntimeError(
+            "Running on Vercel without TURSO_DATABASE_URL/TURSO_AUTH_TOKEN set — "
+            "there's no local disk here to put a SQLite file on."
+        )
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    # WAL's journal file grows with every write and only shrinks back down
-    # when checkpointed. On Vercel's small, ephemeral /tmp there's no
-    # long-running process to do that, so it just accumulates across
-    # requests on a warm instance until the disk fills up ("database or
-    # disk is full", breaking every endpoint, not just whichever one wrote
-    # last). The plain rollback journal is created and discarded per
-    # transaction instead of accumulating, so use that there; WAL is still
-    # fine on a real persistent disk (local dev, Railway/Docker).
-    conn.execute(f"PRAGMA journal_mode={'DELETE' if _VERCEL else 'WAL'}")
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    # The ~440MB decompressed DB itself already consumes most of Vercel's
-    # small /tmp quota. Large unfiltered aggregations (e.g. GROUP BY across
-    # all of classements) make SQLite spill its sort/group temp b-tree to a
-    # disk file by default, which then has nowhere left to go ("database or
-    # disk is full"). Force that into memory instead — Vercel functions have
-    # 1024MB of RAM, comfortably enough headroom.
-    if _VERCEL:
-        conn.execute("PRAGMA temp_store=MEMORY")
     conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
     conn.execute("PRAGMA mmap_size=268435456")  # 256 MB mmap
     return conn
@@ -119,6 +88,9 @@ def init_db():
             est_assimile BOOLEAN DEFAULT 0,
             age INTEGER,
             est_anonyme BOOLEAN DEFAULT 0,
+            genre TEXT,
+            club TEXT,
+            classement_fip INTEGER,
             UNIQUE(joueur_id, mois)
         );
 
@@ -156,24 +128,6 @@ def init_db():
             updated_at TEXT
         );
 
-        -- Singleton row (id=1) tracking the chunked GitHub sync's progress.
-        -- Compressing the whole DB at a high ratio takes minutes; each step
-        -- compresses one bounded raw chunk and uploads it as a Git blob
-        -- (which doesn't touch the branch, so it can't trigger a Vercel
-        -- deployment on its own). Only the final step assembles all blobs
-        -- into one tree + commit + ref update, so exactly one deployment is
-        -- triggered and it's always built from a fully consistent set.
-        CREATE TABLE IF NOT EXISTS sync_job (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            total_size INTEGER NOT NULL,
-            chunk_size INTEGER NOT NULL,
-            offset INTEGER NOT NULL DEFAULT 0,
-            part_index INTEGER NOT NULL DEFAULT 0,
-            blob_shas_json TEXT NOT NULL DEFAULT '[]',
-            status TEXT NOT NULL DEFAULT 'idle',
-            error TEXT,
-            updated_at TEXT
-        );
         """)
         # Migrations for existing DBs
         for col, default in [("est_anonyme", "BOOLEAN DEFAULT 0"), ("genre", "TEXT"), ("club", "TEXT"), ("classement_fip", "INTEGER")]:
@@ -183,10 +137,10 @@ def init_db():
             except Exception:
                 pass  # Column already exists
         try:
-            conn.execute("ALTER TABLE sync_job ADD COLUMN blob_shas_json TEXT NOT NULL DEFAULT '[]'")
+            conn.execute("DROP TABLE IF EXISTS sync_job")  # obsolete — writes go straight to Turso now
             conn.commit()
         except Exception:
-            pass  # Column already exists
+            pass
         # Backfill genre from joueurs if needed
         conn.execute("UPDATE classements SET genre = (SELECT genre FROM joueurs WHERE joueurs.id = classements.joueur_id) WHERE genre IS NULL")
         conn.commit()
