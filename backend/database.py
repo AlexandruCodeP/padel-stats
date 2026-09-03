@@ -160,6 +160,44 @@ def upsert_joueur(conn, nom, prenom, genre, nationalite):
     return cur.fetchone()[0]
 
 
+def bulk_upsert_joueurs(conn, players):
+    """Upsert many players in one statement; returns {(nom, prenom, genre): id}.
+
+    upsert_joueur() costs one round trip per player, which is free against a
+    local SQLite file but ruinous against Turso's HTTP API: a single 100-player
+    FFT page turned into 100 sequential HTTPS calls, which is what pushed
+    /import/step past Vercel's 60 s function limit. One multi-row
+    INSERT ... RETURNING does the same work in a single round trip.
+    """
+    # Dedupe: SQLite/libSQL refuse to let one ON CONFLICT DO UPDATE touch the
+    # same row twice within a statement, and FFT pages do contain namesakes.
+    seen = {}
+    for nom, prenom, genre, nationalite in players:
+        seen[(nom, prenom or "", genre)] = nationalite
+    keys = list(seen)
+    if not keys:
+        return {}
+
+    ids = {}
+    CHUNK = 200  # keep each statement (and its Turso payload) a sane size
+    for i in range(0, len(keys), CHUNK):
+        batch = keys[i:i + CHUNK]
+        values_sql = ",".join(["(?,?,?,?)"] * len(batch))
+        params = []
+        for key in batch:
+            params.extend([key[0], key[1], key[2], seen[key]])
+        rows = conn.execute(
+            f"""INSERT INTO joueurs (nom, prenom, genre, nationalite)
+                VALUES {values_sql}
+                ON CONFLICT(nom, prenom, genre) DO UPDATE SET nationalite=excluded.nationalite
+                RETURNING id, nom, prenom, genre""",
+            params,
+        ).fetchall()
+        for r in rows:
+            ids[(r["nom"], r["prenom"] or "", r["genre"])] = r["id"]
+    return ids
+
+
 def bulk_upsert_classements(conn, rows):
     conn.executemany(
         """INSERT INTO classements
