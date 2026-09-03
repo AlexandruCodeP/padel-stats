@@ -418,11 +418,16 @@ def run_import_step(max_pages=500):
                 data = _fetch_page(genre, page, date_classement)
                 items = data.get("joueurs", [])
 
-                if not items and total_api and imported_count < total_api:
-                    # Empty page before reaching the known total looks like a
-                    # transient FFT hiccup (seen under heavy request volume),
-                    # not genuinely reaching the end — retry a few times
-                    # rather than silently truncating the import.
+                # An empty page is only trustworthy as "end of this genre" once
+                # we've provably reached the total FFT announced. Any other
+                # empty page — including one where FFT never gave us a total —
+                # gets retried, because a transient hiccup (seen under heavy
+                # request volume) is otherwise indistinguishable from the end
+                # and would silently truncate the month. total_api is reset to
+                # None at every genre/month switch, so without this the first
+                # page of each genre was exactly such a blind spot.
+                reached_total = total_api is not None and imported_count >= total_api
+                if not items and not reached_total:
                     attempts = 0
                     while attempts < 3 and _time_left(t0) > FETCH_TIMEOUT + 2:
                         attempts += 1
@@ -436,10 +441,15 @@ def run_import_step(max_pages=500):
                             # Out of budget, not out of luck: leave the job on
                             # this page so the next step retries it.
                             break
-                        raise RuntimeError(
-                            f"Reponse vide inattendue pour {mois_str} {genre} page {page} "
-                            f"({imported_count}/{total_api} importes) — relancez l'import."
-                        )
+                        if total_api is not None:
+                            # Known total, provably short: refuse to pass a
+                            # half-imported month off as finished.
+                            raise RuntimeError(
+                                f"Reponse vide inattendue pour {mois_str} {genre} page {page} "
+                                f"({imported_count}/{total_api} importes) — relancez l'import."
+                            )
+                        # No total to check against — accept the end, but only
+                        # after the retries above ruled out a one-off hiccup.
 
                 if not items:
                     if genre == "H":
