@@ -57,6 +57,8 @@ export async function runImportFlow(onProgress) {
     // Poll /import/step until the job is no longer running (also covers a
     // job that was already running from a previous session/cron trigger).
     let result = start;
+    let stepFailures = 0;
+    const MAX_STEP_FAILURES = 5;
     while (result.status === 'running') {
         if (result.mois) {
             const pct = result.total_api ? Math.min(100, Math.round((result.imported / result.total_api) * 100)) : null;
@@ -65,7 +67,19 @@ export async function runImportFlow(onProgress) {
         } else {
             onProgress('Import en cours...');
         }
-        result = await stepImportJob();
+        try {
+            result = await stepImportJob();
+            stepFailures = 0;
+        } catch (err) {
+            // A step can still fail on its own (a dropped connection, a slow
+            // FFT page pushing the function over its limit). Progress is
+            // persisted server-side after every page, so re-reading the job
+            // and retrying is always safe — give up only after several
+            // consecutive failures, or if the job itself stopped running.
+            if (++stepFailures > MAX_STEP_FAILURES) throw err;
+            await sleep(2000 * stepFailures);
+            result = await getImportJobStatus();
+        }
         await sleep(150);
     }
 

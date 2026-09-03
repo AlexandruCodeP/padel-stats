@@ -12,7 +12,7 @@ import time
 
 # Add parent dir for imports
 sys.path.insert(0, os.path.dirname(__file__))
-from database import init_db, get_db, upsert_joueur, bulk_upsert_classements
+from database import init_db, get_db, upsert_joueur, bulk_upsert_joueurs, bulk_upsert_classements
 
 try:
     import requests
@@ -126,12 +126,17 @@ def generate_test_data(mois_str=None, nb_hommes=2000, nb_femmes=1000):
         print(f"[OK] Generated {nb_hommes} men + {nb_femmes} women for {mois_str}")
 
 
-def _fetch_page(genre, page, date_classement):
+# One FFT request must fit comfortably inside a step's time budget (see
+# STEP_BUDGET_SECONDS), so it can't use a timeout longer than the budget itself.
+FETCH_TIMEOUT = 15
+
+
+def _fetch_page(genre, page, date_classement, timeout=FETCH_TIMEOUT):
     resp = requests.post(
         API_URL,
         json={"pratique": "PADEL", "sexe": genre, "page": page, "dateClassement": date_classement},
         headers={"Content-Type": "application/json", "Referer": "https://tenup.fft.fr/classement-padel"},
-        timeout=30,
+        timeout=timeout,
     )
     resp.raise_for_status()
     return resp.json()
@@ -200,9 +205,10 @@ def import_from_api(mois_str=None, serie=None):
                 if not items:
                     break
 
-                for item in items:
-                    nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip = _parse_item(item)
-                    joueur_id = upsert_joueur(conn, nom, prenom, s, nat)
+                parsed = [_parse_item(item) for item in items]
+                joueur_ids = bulk_upsert_joueurs(conn, [(p[0], p[1], s, p[2]) for p in parsed])
+                for nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip in parsed:
+                    joueur_id = joueur_ids[(nom, prenom or "", s)]
                     classement_rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, s, club, classement_fip))
 
                 total_imported += len(items)
@@ -219,15 +225,22 @@ def import_from_api(mois_str=None, serie=None):
             print(f"  [OK] {total_imported} {s} imported for {mois_str}")
 
 
+# Probing an unknown month costs up to five FFT calls, and /import/start has
+# the same 60 s serverless ceiling as /import/step — so probes get a tighter
+# per-request timeout and an overall budget.
+PROBE_TIMEOUT = 8
+PROBE_BUDGET_SECONDS = 30
+
+
 def _probe_date_has_data(date_classement):
     try:
-        data = _fetch_page("H", 1, date_classement)
+        data = _fetch_page("H", 1, date_classement, timeout=PROBE_TIMEOUT)
     except Exception:
         return False
     return bool(data.get("joueurs"))
 
 
-def _find_date_classement_for_month(mois_str):
+def _find_date_classement_for_month(mois_str, deadline=None):
     """Find the FFT dateClassement that actually has data for a month.
 
     Normally the first Tuesday, but FFT occasionally publishes a day or two
@@ -240,6 +253,8 @@ def _find_date_classement_for_month(mois_str):
 
     base_date = datetime.date.fromisoformat(get_date_classement(mois_str))
     for offset in (0, 1, 2, 3, -1):
+        if deadline is not None and time.monotonic() > deadline:
+            return None
         candidate_date = base_date + datetime.timedelta(days=offset)
         if candidate_date.strftime("%Y-%m") != mois_str:
             continue
@@ -271,6 +286,7 @@ def check_new_months_available():
     new_months = []
     y, m = map(int, latest.split("-"))
     today = datetime.date.today()
+    deadline = time.monotonic() + PROBE_BUDGET_SECONDS
     for _ in range(6):
         m += 1
         if m > 12:
@@ -280,7 +296,11 @@ def check_new_months_available():
         naive_date = get_date_classement(candidate_mois)
         if datetime.date.fromisoformat(naive_date) > today:
             break
-        date_classement = _find_date_classement_for_month(candidate_mois)
+        if time.monotonic() > deadline:
+            # Out of probe budget — import what we found; the next run picks
+            # up whatever is left rather than timing out the request.
+            break
+        date_classement = _find_date_classement_for_month(candidate_mois, deadline)
         if not date_classement:
             break
         new_months.append({"mois": candidate_mois, "date_classement": date_classement})
@@ -346,11 +366,25 @@ def start_import_job(force_month=None):
     return {"status": "running", "months": [m["mois"] for m in new_months]}
 
 
-def run_import_step(max_pages=20):
-    """Process up to max_pages FFT pages for the running job. Call repeatedly
-    (e.g. from the frontend, every request) until status is no longer 'running'."""
+# A step must return well inside Vercel's 60 s function limit, so it stops
+# fetching once this much of its own wall clock is gone (leaving room for one
+# in-flight FFT request plus the writes it produces) instead of relying on a
+# fixed page count, whose duration varies with FFT and Turso latency.
+STEP_BUDGET_SECONDS = 40
+
+
+def _time_left(t0):
+    return STEP_BUDGET_SECONDS - (time.monotonic() - t0)
+
+
+def run_import_step(max_pages=500):
+    """Process FFT pages for the running job until the time budget runs out.
+    Call repeatedly (e.g. from the frontend, every request) until status is no
+    longer 'running'."""
     if not HAS_REQUESTS:
         return {"status": "error", "error": "requests non installe"}
+
+    t0 = time.monotonic()
 
     with get_db() as conn:
         job = _get_job(conn)
@@ -364,9 +398,21 @@ def run_import_step(max_pages=20):
         total_api = job["total_api"]
         imported_count = job["imported_count"]
 
+        def save_progress():
+            conn.execute(
+                """UPDATE import_job SET month_index=?, genre=?, page=?, total_api=?,
+                   imported_count=?, updated_at=datetime('now') WHERE id=1""",
+                (month_index, genre, page, total_api, imported_count),
+            )
+            conn.commit()
+
         pages_done = 0
         try:
-            while pages_done < max_pages and month_index < len(months):
+            while (
+                pages_done < max_pages
+                and month_index < len(months)
+                and _time_left(t0) > FETCH_TIMEOUT + 5
+            ):
                 mois_str = months[month_index]["mois"]
                 date_classement = months[month_index]["date_classement"]
                 data = _fetch_page(genre, page, date_classement)
@@ -377,13 +423,19 @@ def run_import_step(max_pages=20):
                     # transient FFT hiccup (seen under heavy request volume),
                     # not genuinely reaching the end — retry a few times
                     # rather than silently truncating the import.
-                    for _ in range(3):
+                    attempts = 0
+                    while attempts < 3 and _time_left(t0) > FETCH_TIMEOUT + 2:
+                        attempts += 1
                         time.sleep(1)
                         data = _fetch_page(genre, page, date_classement)
                         items = data.get("joueurs", [])
                         if items:
                             break
                     if not items:
+                        if attempts < 3:
+                            # Out of budget, not out of luck: leave the job on
+                            # this page so the next step retries it.
+                            break
                         raise RuntimeError(
                             f"Reponse vide inattendue pour {mois_str} {genre} page {page} "
                             f"({imported_count}/{total_api} importes) — relancez l'import."
@@ -396,12 +448,17 @@ def run_import_step(max_pages=20):
                         month_index += 1
                         genre, page, total_api, imported_count = "H", 1, None, 0
                     pages_done += 1
+                    save_progress()
                     continue
 
+                # One batched upsert per page, not one per player: against
+                # Turso every statement is its own HTTPS round trip, and 100
+                # of them per page is what made a step time out.
+                parsed = [_parse_item(item) for item in items]
+                joueur_ids = bulk_upsert_joueurs(conn, [(p[0], p[1], genre, p[2]) for p in parsed])
                 rows = []
-                for item in items:
-                    nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip = _parse_item(item)
-                    joueur_id = upsert_joueur(conn, nom, prenom, genre, nat)
+                for nom, prenom, nat, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, club, classement_fip in parsed:
+                    joueur_id = joueur_ids[(nom, prenom or "", genre)]
                     rows.append((joueur_id, mois_str, rang, points, evolution, nb_tournois, ligue, meilleur, est_assimile, age, est_anonyme, genre, club, classement_fip))
 
                 bulk_upsert_classements(conn, rows)
@@ -409,13 +466,7 @@ def run_import_step(max_pages=20):
                 imported_count += len(items)
                 page += 1
                 pages_done += 1
-
-                conn.execute(
-                    """UPDATE import_job SET month_index=?, genre=?, page=?, total_api=?,
-                       imported_count=?, updated_at=datetime('now') WHERE id=1""",
-                    (month_index, genre, page, total_api, imported_count),
-                )
-                conn.commit()
+                save_progress()
 
             if month_index >= len(months):
                 conn.execute("UPDATE import_job SET status='done', updated_at=datetime('now') WHERE id=1")
